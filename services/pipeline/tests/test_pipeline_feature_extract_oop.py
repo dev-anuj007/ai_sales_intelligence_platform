@@ -5,7 +5,7 @@ Tests specialized extractors and the main FeatureExtractor orchestrator.
 
 import pytest
 
-from sales_intel.services.pipeline.feature_extract import (
+from services.pipeline.feature_extract import (
     DatabaseExposureExtractor,
     EOLLegacyFeaturesExtractor,
     FeatureExtractor,
