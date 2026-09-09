@@ -1,65 +1,43 @@
-"""Domain utilities for root domain extraction.
-
-Uses tldextract with offline public suffix list to identify company domains
-from Shodan records. No network fetches at runtime.
-"""
+from typing import Any
 
 import tldextract
 
-# Initialize tldextract with offline mode (no network fetch at runtime)
-# Uses bundled public suffix list snapshot
-_EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=None)
 
+class DomainExtractor:
+    def __init__(self) -> None:
+        self._extractor = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=None)
 
-def get_root_domain(record: dict) -> str | None:
-    """Extract the root (registrable) domain from a Shodan record.
+    def extract(self, record: dict[str, Any]) -> str | None:
+        candidates = record.get("domains") or []
+        if not candidates:
+            hostnames = record.get("hostnames") or []
+            if hostnames:
+                candidates = [hostnames[0]]
 
-    Prefers 'domains' field (Shodan's primary domain), falls back to 'hostnames',
-    then returns None if neither is available.
+        if not candidates:
+            return None
 
-    Args:
-        record: Raw Shodan record dict.
+        return self._extract_root_domain(candidates[0])
 
-    Returns:
-        Root domain (e.g., 'example.com'), or None if no domain found.
-    """
-    # Prefer domains[0] (Shodan's primary domain)
-    candidates = record.get("domains") or []
+    def _extract_root_domain(self, domain_str: str) -> str | None:
+        try:
+            result = self._extractor(domain_str)
+            if result.domain and result.suffix:
+                return f"{result.domain}.{result.suffix}"
 
-    # Fall back to hostnames[0]
-    if not candidates:
+            return None
+
+        except Exception:
+            return None
+
+    def is_ip_only(self, record: dict[str, Any]) -> bool:
+        domains = record.get("domains") or []
         hostnames = record.get("hostnames") or []
-        if hostnames:
-            candidates = [hostnames[0]]
-
-    if not candidates:
-        return None
-
-    # Extract root domain using tldextract
-    domain_str = candidates[0]
-    try:
-        result = _EXTRACTOR(domain_str)
-
-        # Need both domain and suffix to form a valid root domain
-        if result.domain and result.suffix:
-            return f"{result.domain}.{result.suffix}"
-
-        return None
-
-    except Exception:
-        # If extraction fails, return None (invalid domain)
-        return None
+        return len(domains) == 0 and len(hostnames) == 0
 
 
-def is_ip_only(record: dict) -> bool:
-    """Check if record has no domain/hostname (IP-only asset).
+_default_extractor = DomainExtractor()
 
-    Args:
-        record: Raw Shodan record dict.
 
-    Returns:
-        True if record has neither domains nor hostnames.
-    """
-    domains = record.get("domains") or []
-    hostnames = record.get("hostnames") or []
-    return len(domains) == 0 and len(hostnames) == 0
+def get_root_domain(record: dict[str, Any]) -> str | None:
+    return _default_extractor.extract(record)

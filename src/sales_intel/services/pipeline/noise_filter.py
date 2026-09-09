@@ -1,50 +1,26 @@
-"""Infrastructure noise detection and filtering.
+from typing import Any
 
-Records tagged with infra-related tags (CDN, cloud, proxy, honeypot, VPN, Tor)
-are marked as noise. This is a rule-level filter applied to all records at
-ingest time; a separate LLM re-classification later re-checks only top-scored
-accounts for ambiguous cases.
+from sales_intel.services.pipeline.config import get_pipeline_config
 
-Design: tag-based (not org/isp/asn-based) because those fields describe
-hosting infrastructure providers, not the target business.
-"""
 
-# Tags indicating infrastructure/non-target assets
-_INFRA_NOISE_TAGS = {
-    "cdn",       # Content Delivery Network (Incapsula, CloudFlare, Akamai, etc.)
-    "cloud",     # Cloud provider (AWS, Google, Azure edge nodes)
-    "proxy",     # HTTP/SOCKS proxy
-    "vpn",       # VPN endpoint
-    "honeypot",  # Deception asset
-    "tor",       # Tor exit node
-}
+class NoiseDetector:
+    def __init__(self) -> None:
+        config = get_pipeline_config()
+        self.noise_tags = config.infra_noise_tags.as_set()
+
+    def is_noise(self, tags: list[str] | None) -> bool:
+        if not tags:
+            return False
+
+        return bool(self.noise_tags & set(tags))
+
+    def should_include(self, record: dict[str, Any]) -> bool:
+        tags = record.get("tags") or []
+        return not self.is_noise(tags)
+
+
+_default_detector = NoiseDetector()
 
 
 def is_infra_noise_tags(tags: list[str] | None) -> bool:
-    """Check if a record should be filtered as infrastructure noise.
-
-    Args:
-        tags: List of tags from the Shodan record.
-
-    Returns:
-        True if any tag indicates infrastructure/non-target asset.
-    """
-    if not tags:
-        return False
-
-    return bool(_INFRA_NOISE_TAGS.intersection(tags))
-
-
-def should_include_record(record: dict) -> bool:
-    """Determine if a record should be included in accounts aggregation.
-
-    A record is excluded (noise) if it's tagged as infra.
-
-    Args:
-        record: Raw Shodan record dict (after domain extraction).
-
-    Returns:
-        True if record should be included in analysis.
-    """
-    tags = record.get("tags") or []
-    return not is_infra_noise_tags(tags)
+    return _default_detector.is_noise(tags)
