@@ -23,7 +23,6 @@ dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "mypy>=1.8",
-    "types-zstandard>=0.25",
 ]
 
 [tool.mypy]
@@ -44,7 +43,10 @@ module = "tests.*"
 disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["services"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
