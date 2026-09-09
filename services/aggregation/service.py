@@ -3,7 +3,7 @@ from typing import Any
 import duckdb
 import logfire
 
-from sales_intel.services.storage.account_storage import AccountStorageService
+from services.storage.account_storage import AccountStorageService
 
 
 class AggregationService:
