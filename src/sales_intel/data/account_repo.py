@@ -1,8 +1,3 @@
-"""Repository for accounts table (aggregated domain accounts).
-
-Handles fetch, filter, update operations on scored accounts.
-"""
-
 from datetime import datetime
 from typing import Any
 
@@ -14,15 +9,11 @@ from sales_intel.data.repository import BaseRepository
 
 
 class AccountRepository(BaseRepository[Account]):
-    """Repository for domain accounts."""
-
     def get_by_id(self, root_domain: str) -> Account | None:
-        """Retrieve an account by root_domain (primary key)."""
         row = self.fetch_one("SELECT * FROM accounts WHERE root_domain = ?", {"root_domain": root_domain})
         return Account(**row) if row else None
 
     def list(self, limit: int = 100, offset: int = 0) -> list[Account]:
-        """List accounts with pagination (unordered)."""
         rows = self.fetch_all(
             "SELECT * FROM accounts LIMIT ? OFFSET ?",
             {"limit": limit, "offset": offset},
@@ -30,11 +21,9 @@ class AccountRepository(BaseRepository[Account]):
         return [Account(**row) for row in rows]
 
     def create(self, entity: Account) -> Account:
-        """Insert a new account (rarely used directly; accounts created via aggregation SQL)."""
         raise NotImplementedError("Accounts are created via aggregation, not direct insert.")
 
     def update(self, entity: Account) -> Account:
-        """Update an account record."""
         query = """
             UPDATE accounts
             SET risk_score = ?, score_version = ?, signal_tags = ?, score_explanation = ?,

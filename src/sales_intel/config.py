@@ -1,9 +1,3 @@
-"""Configuration management for AI Sales Intelligence Platform.
-
-Uses Pydantic Settings for environment-driven configuration with strict type checking.
-All paths, model IDs, and weights versions are defined here to enable easy tuning.
-"""
-
 from pathlib import Path
 from typing import Literal
 
@@ -11,8 +5,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings, loaded from environment variables and .env file."""
-
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # ===== Paths =====
