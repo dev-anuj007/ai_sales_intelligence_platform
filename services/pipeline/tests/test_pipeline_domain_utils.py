@@ -2,7 +2,7 @@
 
 import pytest
 
-from sales_intel.services.pipeline.domain_utils import get_root_domain, is_ip_only
+from services.pipeline.domain_utils import get_root_domain, is_ip_only
 
 
 class TestGetRootDomain:

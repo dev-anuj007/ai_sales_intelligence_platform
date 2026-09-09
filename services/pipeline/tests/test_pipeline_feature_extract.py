@@ -5,7 +5,7 @@ Tests specialized extractors and the main FeatureExtractor facade.
 
 import pytest
 
-from sales_intel.services.pipeline.feature_extract import (
+from services.pipeline.feature_extract import (
     DATABASE_PORTS,
     LEGACY_PROTOCOL_PORTS,
     WEAK_TLS_VERSIONS,

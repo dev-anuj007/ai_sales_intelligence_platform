@@ -2,7 +2,7 @@
 
 import pytest
 
-from sales_intel.services.pipeline.noise_filter import (
+from services.pipeline.noise_filter import (
     is_infra_noise_tags,
     should_include_record,
 )
