@@ -1,9 +1,3 @@
-"""Pipeline deployment configuration (where/how, NOT what).
-
-Environment-driven settings for thresholds, feature detection constants.
-Schema definitions belong in schemas.py, not here.
-"""
-
 from pydantic import BaseModel, Field
 
 

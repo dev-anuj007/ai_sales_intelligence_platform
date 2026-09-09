@@ -1,11 +1,3 @@
-"""Feature extractors module with proper module-level SRP.
-
-Each extractor is in its own file. This module re-exports them for convenience.
-Clients can either:
-  - Import from this package: `from sales_intel.services.pipeline.extractors import extract_features`
-  - Import specific extractors: `from sales_intel.services.pipeline.extractors.database_exposure import DatabaseExposureExtractor`
-"""
-
 from sales_intel.services.pipeline.extractors.database_exposure import DatabaseExposureExtractor
 from sales_intel.services.pipeline.extractors.factory import FeatureExtractorFactory, extract_features
 from sales_intel.services.pipeline.extractors.http_web import HTTPWebExtractor

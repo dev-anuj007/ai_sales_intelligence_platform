@@ -1,9 +1,3 @@
-"""Domain models for pipeline data (what data looks like, NOT how it's deployed).
-
-Pydantic models are value objects representing extracted features.
-These are immutable (frozen=True) and contain only business domain logic.
-"""
-
 from pydantic import BaseModel, Field
 
 
