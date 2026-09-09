@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any
 
-from sales_intel.services.pipeline.config import get_pipeline_config
-from sales_intel.services.pipeline.domain_utils import DomainExtractor
-from sales_intel.services.pipeline.extractors.factory import extract_features
-from sales_intel.services.pipeline.noise_filter import NoiseDetector
+from services.pipeline.config import get_pipeline_config
+from services.pipeline.domain_utils import DomainExtractor
+from services.pipeline.extractors.factory import extract_features
+from services.pipeline.noise_filter import NoiseDetector
 
 
 class RecordNormalizer:

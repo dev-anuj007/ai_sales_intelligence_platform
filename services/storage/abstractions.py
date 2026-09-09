@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from typing import Any, Generic, Protocol, TypeVar
 
-from sales_intel.services.storage.enums import StorageType, TableType
+from services.storage.enums import StorageType, TableType
 
 T = TypeVar("T")
 

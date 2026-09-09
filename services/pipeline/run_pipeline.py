@@ -1,18 +1,20 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import typer
 
 import logfire
 
-from sales_intel.config import settings
-from sales_intel.services.storage import (
+from config import settings
+from services.storage import (
     StagingStorageService,
     init_pool,
     close_pool,
 )
-from sales_intel.services.storage.migrate import apply_schema
-from sales_intel.services.aggregation.aggregation_service import AggregationService
-from sales_intel.services.pipeline.ingest_service import IngestService
+from services.storage.migrate import apply_schema
+from services.aggregation.service import AggregationService
+from services.pipeline.service import IngestService
 
 app = typer.Typer(help="Data pipeline: ingest, normalize, aggregate")
 

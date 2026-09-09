@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from typing import Any
 
 import duckdb
 import logfire
 
-from sales_intel.services.storage.duckdb_connection import get_pool
-from sales_intel.services.storage.enums import StorageType, TableType
-from sales_intel.services.storage.models import StagingRecord
+from services.storage.duckdb_connection import get_pool
+from services.storage.enums import StorageType, TableType
+from services.storage.models import StagingRecord
 
 
 class StagingStorageService:

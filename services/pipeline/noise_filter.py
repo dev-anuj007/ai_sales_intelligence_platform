@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from typing import Any
 
-from sales_intel.services.pipeline.config import get_pipeline_config
+from services.pipeline.config import get_pipeline_config
 
 
 class NoiseDetector:

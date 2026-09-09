@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from services.scoring.scoring_service import ScoringService
+from services.scoring.service import ScoringService
 from services.storage import get_pool
 
 router = APIRouter(prefix="/scoring", tags=["scoring"])

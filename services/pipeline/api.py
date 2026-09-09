@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, UploadFile
 
-from services.pipeline.ingest_service import IngestService
+from services.pipeline.service import IngestService
 from services.storage import StagingStorageService, get_pool
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])

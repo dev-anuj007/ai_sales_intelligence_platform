@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
 
 import duckdb
 
-from sales_intel.config import settings
-from sales_intel.services.storage.abstractions import ConnectionPool
+from config import settings
+from services.storage.abstractions import ConnectionPool
 
 _connection: duckdb.DuckDBPyConnection | None = None
 

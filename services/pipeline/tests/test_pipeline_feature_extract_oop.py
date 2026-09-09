@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Unit tests for OOP-based feature extraction.
 
 Tests specialized extractors and the main FeatureExtractor orchestrator.
@@ -250,8 +252,8 @@ class TestFeatureExtractorFacade:
         assert features.vulnerabilities.has_vulns is False
         assert features.tls.has_ssl is False
         assert features.http.title is None
-        assert features.eol.is_eol is False
-        assert features.eol.is_honeypot is False
+        assert features.software_maturity.is_eol is False
+        assert features.software_maturity.is_honeypot is False
 
     def test_complete_record(self) -> None:
         """Complete record with all features should extract correctly."""
@@ -265,7 +267,7 @@ class TestFeatureExtractorFacade:
         features = self.extractor.extract(record)
 
         assert features.database.is_exposed is True
-        assert features.eol.is_eol is True
+        assert features.software_maturity.is_eol is True
         assert features.tls.has_ssl is True
         assert features.vulnerabilities.has_vulns is True
         assert features.http.title == "Login"
@@ -274,7 +276,7 @@ class TestFeatureExtractorFacade:
         """ExtractedFeatures should convert to flat dict for DB insertion."""
         record = {"port": 5432, "tags": ["eol-product"]}
         features = self.extractor.extract(record)
-        flat_dict = features.to_dict()
+        flat_dict = features.to_db_dict()
 
         assert flat_dict["is_database_port"] is True
         assert flat_dict["is_eol_product"] is True
@@ -297,4 +299,4 @@ class TestFeatureExtractorFacade:
         features = self.extractor.extract(record)
 
         assert features.iot_ot.is_exposed is True
-        assert features.eol.is_eol is True
+        assert features.software_maturity.is_eol is True

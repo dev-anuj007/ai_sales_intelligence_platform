@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from services.aggregation.aggregation_service import AggregationService
+from services.aggregation.service import AggregationService
 from services.storage import get_pool
 
 router = APIRouter(prefix="/aggregation", tags=["aggregation"])

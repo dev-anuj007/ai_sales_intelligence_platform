@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any
 
 import duckdb
 import logfire
 
-from sales_intel.services.storage.abstractions import NamesStorageService
-from sales_intel.services.storage.duckdb_connection import get_pool
-from sales_intel.services.storage.enums import StorageType, TableType
+from services.storage.abstractions import NamesStorageService
+from services.storage.duckdb_connection import get_pool
+from services.storage.enums import StorageType, TableType
 
 
 class NamesStorageServiceImpl:

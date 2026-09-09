@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 
 import logfire
 
-from sales_intel.services.storage.staging_storage import StagingStorageService
-from sales_intel.services.pipeline.normalizer import normalize_record
-from sales_intel.services.pipeline.stream_reader import iter_batches
+from services.storage.staging_storage import StagingStorageService
+from services.pipeline.normalizer import normalize_record
+from services.pipeline.stream_reader import iter_batches
 
 
 class IngestService:

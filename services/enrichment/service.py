@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from typing import Any
 
 import duckdb
 import logfire
 
-from sales_intel.services.storage.account_storage import AccountStorageService
-from sales_intel.services.storage.names_storage import NamesStorageServiceImpl
+from services.storage.account_storage import AccountStorageService
+from services.storage.names_storage import NamesStorageServiceImpl
 
 
 class EnrichmentService:

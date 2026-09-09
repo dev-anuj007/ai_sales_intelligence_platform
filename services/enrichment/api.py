@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from services.enrichment.enrichment_service import EnrichmentService
+from services.enrichment.service import EnrichmentService
 from services.storage import get_pool
 
 router = APIRouter(prefix="/enrichment", tags=["enrichment"])

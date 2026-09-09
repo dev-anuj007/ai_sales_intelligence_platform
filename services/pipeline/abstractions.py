@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from typing import Any, Protocol
 
-from sales_intel.services.pipeline.schemas import (
+from services.pipeline.schemas import (
     DatabaseExposure,
     ExtractedFeatures,
     HTTPWebData,

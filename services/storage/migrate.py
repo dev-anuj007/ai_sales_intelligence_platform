@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import duckdb
 import logfire
 
-from sales_intel.services.storage.duckdb_connection import get_pool
+from services.storage.duckdb_connection import get_pool
 
 
 def apply_schema(conn: duckdb.DuckDBPyConnection | None = None) -> None:
