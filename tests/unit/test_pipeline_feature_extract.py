@@ -1,4 +1,7 @@
-"""Unit tests for feature extraction (table-driven, high coverage)."""
+"""Unit tests for feature extraction using OOP design.
+
+Tests specialized extractors and the main FeatureExtractor facade.
+"""
 
 import pytest
 
@@ -6,79 +9,102 @@ from sales_intel.services.pipeline.feature_extract import (
     DATABASE_PORTS,
     LEGACY_PROTOCOL_PORTS,
     WEAK_TLS_VERSIONS,
-    extract_all_features,
-    extract_http_features,
-    extract_ssl_features,
-    extract_vuln_features,
-    is_database_port,
-    is_eol_product,
-    is_honeypot,
-    is_iot_ot_device,
-    is_legacy_protocol,
+    DatabaseExposureExtractor,
+    EOLLegacyFeaturesExtractor,
+    ExtractedFeatures,
+    FeatureExtractor,
+    HTTPFeaturesExtractor,
+    IoTOTExposureExtractor,
+    LegacyProtocolExposureExtractor,
+    TLSFeaturesExtractor,
+    VulnerabilityFeaturesExtractor,
 )
 
 
-class TestDatabasePortDetection:
-    """Test database port detection."""
+class TestDatabaseExposureExtractor:
+    """Test database exposure detection via specialized extractor."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.extractor = DatabaseExposureExtractor()
 
     def test_known_database_port(self) -> None:
         """Database port 5432 (PostgreSQL) should be detected."""
         record = {"port": 5432}
-        assert is_database_port(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
+        assert result.port == 5432
 
     def test_known_database_port_mongodb(self) -> None:
         """Database port 27017 (MongoDB) should be detected."""
         record = {"port": 27017}
-        assert is_database_port(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
 
     def test_non_database_port(self) -> None:
         """Port 80 (HTTP) should not be detected as database."""
         record = {"port": 80}
-        assert is_database_port(record) is False
+        result = self.extractor.extract(record)
+        assert result.is_exposed is False
 
     def test_mongodb_subobject_present(self) -> None:
         """mongodb sub-object presence should be detected."""
         record = {"port": 9999, "mongodb": {"version": "4.0"}}
-        assert is_database_port(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
+        assert result.service_type == "mongodb"
 
     def test_redis_subobject_present(self) -> None:
         """redis sub-object presence should be detected."""
         record = {"port": 6379, "redis": {}}
-        assert is_database_port(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
 
     def test_no_port_or_subobject(self) -> None:
         """No port and no DB sub-object should return False."""
         record = {}
-        assert is_database_port(record) is False
+        result = self.extractor.extract(record)
+        assert result.is_exposed is False
 
 
-class TestLegacyProtocolDetection:
-    """Test legacy protocol detection."""
+class TestLegacyProtocolExposureExtractor:
+    """Test legacy protocol exposure detection via specialized extractor."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.extractor = LegacyProtocolExposureExtractor()
 
     def test_ftp_port(self) -> None:
         """Port 21 (FTP) should be detected as legacy."""
         record = {"port": 21}
-        assert is_legacy_protocol(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
+        assert result.port == 21
 
     def test_telnet_port(self) -> None:
         """Port 23 (Telnet) should be detected as legacy."""
         record = {"port": 23}
-        assert is_legacy_protocol(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
 
     def test_rdp_port(self) -> None:
         """Port 3389 (RDP) should be detected as legacy."""
         record = {"port": 3389}
-        assert is_legacy_protocol(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
 
     def test_ftp_subobject(self) -> None:
         """ftp sub-object should be detected."""
         record = {"port": 2121, "ftp": {}}
-        assert is_legacy_protocol(record) is True
+        result = self.extractor.extract(record)
+        assert result.is_exposed is True
+        assert result.protocol_type == "ftp"
 
     def test_modern_port(self) -> None:
         """Port 443 (HTTPS) should not be detected as legacy."""
         record = {"port": 443}
-        assert is_legacy_protocol(record) is False
+        result = self.extractor.extract(record)
+        assert result.is_exposed is False
 
 
 class TestIoTOTDetection:

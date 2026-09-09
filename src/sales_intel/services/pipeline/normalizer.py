@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from sales_intel.services.pipeline.domain_utils import get_root_domain
-from sales_intel.services.pipeline.feature_extract import extract_all_features
+from sales_intel.services.pipeline.feature_extract import FeatureExtractor
 from sales_intel.services.pipeline.noise_filter import is_infra_noise_tags
 
 
@@ -38,8 +38,10 @@ def normalize_record(raw_record: dict[str, Any], record_id: int) -> dict[str, An
     # Extract Shodan metadata
     shodan = raw_record.get("_shodan") or {}
 
-    # Extract all features
-    features = extract_all_features(raw_record)
+    # Extract all features using OOP extractor
+    feature_extractor = FeatureExtractor()
+    extracted_features = feature_extractor.extract(raw_record)
+    features = extracted_features.to_dict()
 
     # Truncate banner text (data field)
     data_snippet = raw_record.get("data")
