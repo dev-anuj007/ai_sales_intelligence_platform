@@ -12,66 +12,60 @@ A production-grade sales intelligence platform for cybersecurity teams to identi
 
 ### Setup
 
-1. **Clone and install dependencies:**
+1. **Install dependencies:**
    ```bash
    uv sync
-   uv pip install -e ".[dev]"
    ```
 
-2. **Configure environment:**
+2. **Ingest data (using the fixture for quick dev iteration):**
    ```bash
-   cp .env.example .env
-   # Edit .env with your settings, especially RAW_DATA_PATH and LLM_CLIENT
-   ```
-
-3. **Ingest data (using the fixture for quick dev iteration):**
-   ```bash
-   uv run python -m sales_intel.services.pipeline.run_pipeline \
-     --input data/fixtures/shodan_sample.jsonl \
-     --db db/sales_intel.duckdb \
+   uv run python -m services.pipeline.run_pipeline \
+     --input services/pipeline/data/fixtures/shodan_sample.jsonl \
+     --db services/storage/db/sales_intel.duckdb \
      --limit 5000
    ```
 
-4. **Score accounts:**
+3. **Score accounts:**
    ```bash
-   uv run python -m sales_intel.services.scoring.score_accounts \
-     --db db/sales_intel.duckdb
+   uv run python -m services.scoring.score_accounts \
+     --db services/storage/db/sales_intel.duckdb
    ```
 
-5. **Enrich top accounts (mock LLM):**
+4. **Enrich top accounts (mock LLM):**
    ```bash
-   uv run python -m sales_intel.services.enrichment.run_enrichment \
-     --db db/sales_intel.duckdb \
+   uv run python -m services.enrichment.run_enrichment \
+     --db services/storage/db/sales_intel.duckdb \
      --top-n 50 \
      --client mock
    ```
 
-6. **Run the API server:**
+5. **Run the API server:**
    ```bash
-   uv run uvicorn main:app --reload
+   # Uses port 8001 if port 8000 is in use
+   uv run uvicorn main:app --reload --port 8001
    ```
 
-7. **Test it:**
+6. **Test it:**
    ```bash
-   curl http://localhost:8000/health
-   curl http://localhost:8000/accounts?limit=10
-   curl http://localhost:8000/accounts/example.com
+   curl http://localhost:8001/health
+   curl http://localhost:8001/accounts?limit=10
+   curl http://localhost:8001/accounts/{root_domain}
    ```
 
 ### Running Tests
 
 ```bash
-# Unit tests only
-uv run pytest -v -m "not slow"
+# All tests across all services
+uv run pytest services/*/tests/ -v
 
-# Full test suite including integration
-uv run pytest -v
+# Tests for a specific service
+uv run pytest services/pipeline/tests/ -v
 
 # With coverage report
-uv run pytest --cov=src/sales_intel --cov-report=html
+uv run pytest services/*/tests/ --cov=services/ --cov-report=html
 
-# Type checking
-uv run mypy src/
+# Type checking (strict mode)
+uv run mypy services/
 ```
 
 ### Evaluation
@@ -79,31 +73,30 @@ uv run mypy src/
 Run the signal/noise classification eval against the mock LLM:
 
 ```bash
-uv run python evals/signal_noise/run_eval.py \
+uv run python services/enrichment/evals/run_eval.py \
   --prompt-version v1 \
-  --dataset evals/signal_noise/dataset_v1.jsonl \
-  --client mock
-```
-
-Compare v1 vs v2:
-
-```bash
-uv run python evals/signal_noise/run_eval.py \
-  --prompt-version v2 \
-  --compare-to v1 \
-  --dataset evals/signal_noise/dataset_v1.jsonl \
+  --dataset services/enrichment/evals/datasets/signal_noise_v1.jsonl \
   --client mock
 ```
 
 ## Architecture
 
-**Layered SOA (Service-Oriented Architecture):**
+**Microservices-first with strict three-tier layering:**
 
-- **Data Layer** (`src/sales_intel/data/`): DuckDB repositories, models, schema
-- **Service Layer** (`src/sales_intel/services/`): Business logic (pipeline, scoring, enrichment, aggregation)
-- **API Layer** (`src/sales_intel/api/`): FastAPI routers and HTTP schemas
+Each service is self-contained and independently deployable:
 
-All services are dependency-injected into routers. Services have zero knowledge of HTTP/FastAPI.
+1. **API Layer** (`*/api.py`) — FastAPI routers, HTTP request/response handling
+2. **Service Layer** (`*/service.py`) — Business logic, orchestration
+3. **Storage Layer** (`services/storage/`) — DuckDB access, repositories, models
+
+All services are dependency-injected. Services have zero knowledge of HTTP/FastAPI. API layer NEVER directly accesses storage.
+
+**Services:**
+- `services/pipeline/` — Streaming ingest, normalization, domain extraction, noise filtering
+- `services/aggregation/` — SQL aggregation from staging to accounts
+- `services/scoring/` — Rule-based risk scoring engine
+- `services/enrichment/` — LLM orchestration (signal/noise, company inference, narrative, outreach)
+- `services/storage/` — Shared data access layer (DuckDB, repositories, domain models)
 
 ## Key Features
 
@@ -127,28 +120,59 @@ All services are dependency-injected into routers. Services have zero knowledge 
 ## Project Structure
 
 ```
-src/sales_intel/
-  config.py                  Pydantic Settings, all env-driven config
-  data/                      Data layer: repositories, models, DuckDB schema
-  services/
-    pipeline/                Streaming ingest, domain extraction, noise filtering
-    scoring/                 Rule-based risk scoring engine
-    llm/                     LLM client abstraction (mock + Anthropic), pricing, tracing
-    enrichment/              LangGraph orchestration (signal/noise, company infer, narrative, outreach)
-    aggregation/             SQL aggregation from staging to accounts
-  api/                       FastAPI routers, HTTP schemas, dependency injection
-prompts/                     Versioned prompt files (v1.md, v2.md, ...)
-skills/                      Reusable skill definitions (account-risk-triage)
-evals/                       Hand-labeled evaluation sets, eval harness, results
-data/
-  fixtures/                  Committed sample data for testing (5K records)
-  raw/                       gitignored: real raw data (env: RAW_DATA_PATH)
-db/                          gitignored: DuckDB database file
-traces/                      gitignored: LLM telemetry JSONL
-tests/
-  unit/                      Unit tests, mocked dependencies
-  integration/               Integration tests, real tmp DuckDB
+/
+├── services/                Self-contained microservices
+│   ├── storage/             Shared data access layer
+│   │   ├── abstractions.py  Protocol interfaces
+│   │   ├── *_storage.py     DuckDB implementations
+│   │   ├── models.py        Pydantic domain models
+│   │   ├── db/              DuckDB files (.gitignore)
+│   │   └── tests/           Storage layer tests
+│   │
+│   ├── pipeline/            Data ingestion service
+│   │   ├── service.py       Business logic
+│   │   ├── api.py           FastAPI routes
+│   │   ├── data/
+│   │   │   ├── fixtures/    Test data (committed)
+│   │   │   └── raw/         External input (.gitignore)
+│   │   └── tests/           Unit tests (90%+ coverage)
+│   │
+│   ├── aggregation/         Aggregation service
+│   │   ├── service.py
+│   │   ├── api.py
+│   │   └── tests/
+│   │
+│   ├── scoring/             Scoring service
+│   │   ├── service.py
+│   │   ├── api.py
+│   │   └── tests/
+│   │
+│   └── enrichment/          Enrichment service
+│       ├── service.py
+│       ├── api.py
+│       ├── prompts/         Versioned prompt templates
+│       ├── evals/           Evaluation datasets & results
+│       ├── traces/          LLM trace logs (.gitignore)
+│       └── tests/
+│
+├── config.py                Environment configuration (Pydantic Settings)
+├── main.py                  FastAPI application entry point
+├── docs/                    Comprehensive documentation
+│   ├── architecture.md      Layering, SOLID, abstractions
+│   ├── planning.md          Goals, phases, decisions
+│   ├── roadmap.md           Future phases, timeline
+│   ├── cost_model.md        LLM costs, token tracking
+│   └── how-you-build.md     Design patterns, philosophy
+├── pyproject.toml           Dependencies, project config
+└── README.md                This file
 ```
+
+**Key principles:**
+- Each service owns its data (fixtures, evals, prompts, traces)
+- Tests live with the service (`services/*/tests/`)
+- Single responsibility per file (one class per file)
+- API → Service → Storage layering (strict three-tier)
+- Dependency injection everywhere (zero globals except config)
 
 ## Roadmap (Future Phases)
 
