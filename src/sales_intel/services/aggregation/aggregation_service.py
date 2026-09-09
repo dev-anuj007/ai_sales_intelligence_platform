@@ -1,9 +1,3 @@
-"""Aggregation service: groups staging records into accounts.
-
-Executes SQL to aggregate per-root-domain, creating the accounts table
-and the account_top_records index for LLM grounding.
-"""
-
 from typing import Any
 
 import duckdb
@@ -13,36 +7,18 @@ from sales_intel.data.account_repo import AccountRepository
 
 
 class AggregationService:
-    """Service for aggregating staging records into accounts."""
-
     def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
-        """Initialize aggregation service.
-
-        Args:
-            connection: DuckDB connection.
-        """
         self.connection = connection
         self.account_repo = AccountRepository(connection)
 
     def aggregate_staging_to_accounts(self) -> dict[str, Any]:
-        """Aggregate staging_records → accounts and account_top_records via SQL.
-
-        Returns:
-            Summary dict with counts.
-        """
         logfire.info("aggregation_service.start")
 
         try:
-            # Aggregate staging_records into accounts
             self._aggregate_accounts_sql()
-
-            # Build account_top_records index
             self._build_account_top_records_index()
-
-            # Mark honeypot-only accounts
             self._mark_excluded_honeypots()
 
-            # Get summary counts
             account_count = self.account_repo.count_all()
             excluded_honeypot = self.account_repo.count_excluded_honeypot()
 
@@ -60,7 +36,6 @@ class AggregationService:
             raise
 
     def _aggregate_accounts_sql(self) -> None:
-        """Execute SQL to aggregate staging_records → accounts."""
         sql = """
             INSERT INTO accounts (
                 root_domain, record_count, asset_count, distinct_ips, distinct_ports,
@@ -133,7 +108,6 @@ class AggregationService:
         logfire.info("aggregation_service.accounts_aggregated")
 
     def _build_account_top_records_index(self) -> None:
-        """Build index of top 20 most-interesting records per account for LLM grounding."""
         sql = """
             INSERT INTO account_top_records (root_domain, record_id, rank)
             SELECT root_domain, record_id, rn FROM (
@@ -155,7 +129,6 @@ class AggregationService:
         logfire.info("aggregation_service.account_top_records_built")
 
     def _mark_excluded_honeypots(self) -> None:
-        """Mark accounts as excluded if all their assets are honeypots."""
         sql = """
             UPDATE accounts
             SET excluded_as_honeypot = true

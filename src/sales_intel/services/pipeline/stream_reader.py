@@ -1,9 +1,3 @@
-"""Streaming reader for zstd-compressed Shodan JSONL data.
-
-Reads the large dataset in constant memory using a generator pattern.
-Supports --limit for dev iteration over small subsets.
-"""
-
 import io
 from pathlib import Path
 from typing import Any, Generator
@@ -17,18 +11,6 @@ import logfire
 def iter_records(
     path: Path | str, limit: int | None = None
 ) -> Generator[dict[str, Any], None, None]:
-    """Stream Shodan records from a zstd-compressed JSONL file.
-
-    Args:
-        path: Path to the .jsonl.zst file.
-        limit: Max number of records to yield (None = unlimited).
-
-    Yields:
-        Parsed JSON record dict.
-
-    Raises:
-        FileNotFoundError: If file does not exist.
-    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
@@ -70,16 +52,6 @@ def iter_records(
 def iter_batches(
     path: Path | str, batch_size: int = 5000, limit: int | None = None
 ) -> Generator[list[dict[str, Any]], None, None]:
-    """Stream records in batches for efficient bulk insert.
-
-    Args:
-        path: Path to the .jsonl.zst file.
-        batch_size: Number of records per batch.
-        limit: Max total records (None = unlimited).
-
-    Yields:
-        List of record dicts (batch).
-    """
     batch: list[dict[str, Any]] = []
 
     for record in iter_records(path, limit=limit):

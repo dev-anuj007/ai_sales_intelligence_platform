@@ -1,10 +1,3 @@
-"""CLI entry point for the data pipeline.
-
-Usage:
-    uv run python -m sales_intel.services.pipeline.run_pipeline --input data/fixtures/shodan_sample.jsonl --db db/sales_intel.duckdb --limit 5000
-    uv run python -m sales_intel.services.pipeline.run_pipeline --input $RAW_DATA_PATH --db db/sales_intel.duckdb
-"""
-
 from pathlib import Path
 
 import typer
