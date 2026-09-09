@@ -1,0 +1,51 @@
+[project]
+name = "ai-sales-intelligence-platform"
+version = "0.1.0"
+description = "AI-native sales intelligence platform for cybersecurity lead scoring and outreach"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.141.1",
+    "logfire[fastapi,system-metrics]>=5.0.0",
+    "uvicorn>=0.52.4",
+    "duckdb>=1.1",
+    "tldextract>=5.1",
+    "orjson>=3.10",
+    "typer>=0.15",
+    "pydantic-settings>=2.6",
+    "anthropic>=0.68",
+    "langgraph>=0.2",
+    "zstandard>=0.25",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "mypy>=1.8",
+    "types-zstandard>=0.25",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
