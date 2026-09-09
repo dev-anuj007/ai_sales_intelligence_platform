@@ -3,14 +3,14 @@ from typing import Any
 
 import logfire
 
-from sales_intel.data.staging_repo import StagingRecordRepository
+from sales_intel.services.storage.staging_storage import StagingStorageService
 from sales_intel.services.pipeline.normalizer import normalize_record
 from sales_intel.services.pipeline.stream_reader import iter_batches
 
 
 class IngestService:
-    def __init__(self, staging_repo: StagingRecordRepository) -> None:
-        self.staging_repo = staging_repo
+    def __init__(self, staging_storage: StagingStorageService) -> None:
+        self.staging_storage = staging_storage
         self.total_records_processed = 0
         self.total_records_inserted = 0
 
@@ -46,7 +46,7 @@ class IngestService:
                         continue
 
                 try:
-                    inserted = self.staging_repo.bulk_insert(normalized_batch)
+                    inserted = self.staging_storage.bulk_insert(normalized_batch)
                     self.total_records_inserted += inserted
                     logfire.info("ingest_service.batch_inserted", count=inserted)
 

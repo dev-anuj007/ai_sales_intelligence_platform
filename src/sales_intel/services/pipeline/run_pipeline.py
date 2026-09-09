@@ -5,9 +5,12 @@ import typer
 import logfire
 
 from sales_intel.config import settings
-from sales_intel.data.connection import get_connection_context
-from sales_intel.data.migrate import apply_schema
-from sales_intel.data.staging_repo import StagingRecordRepository
+from sales_intel.services.storage import (
+    StagingStorageService,
+    init_pool,
+    close_pool,
+)
+from sales_intel.services.storage.migrate import apply_schema
 from sales_intel.services.aggregation.aggregation_service import AggregationService
 from sales_intel.services.pipeline.ingest_service import IngestService
 
@@ -60,41 +63,41 @@ def pipeline(
         typer.echo(f"   Limit: {limit} records")
 
     try:
-        with get_connection_context() as conn:
-            # Ensure schema exists
-            typer.echo("📋 Applying schema...")
-            apply_schema(conn)
+        pool = init_pool(db_path)
+        conn = pool.get_connection()
 
-            # Phase 1: Ingest
-            typer.echo("📥 Ingesting records...")
-            staging_repo = StagingRecordRepository(conn)
-            ingest_service = IngestService(staging_repo)
-            ingest_result = ingest_service.ingest(
-                input_path, batch_size=batch_size, limit=limit
-            )
+        typer.echo("📋 Applying schema...")
+        apply_schema(conn)
 
-            typer.echo(f"✅ Ingest complete: {ingest_result['total_inserted']} records inserted")
+        typer.echo("📥 Ingesting records...")
+        staging_storage = StagingStorageService(conn)
+        ingest_service = IngestService(staging_storage)
+        ingest_result = ingest_service.ingest(
+            input_path, batch_size=batch_size, limit=limit
+        )
 
-            # Phase 2: Aggregate
-            typer.echo("🔄 Aggregating into accounts...")
-            agg_service = AggregationService(conn)
-            agg_result = agg_service.aggregate_staging_to_accounts()
+        typer.echo(f"✅ Ingest complete: {ingest_result['total_inserted']} records inserted")
 
-            typer.echo(f"✅ Aggregation complete:")
-            typer.echo(f"   - {agg_result['accounts_created']} accounts created")
-            typer.echo(f"   - {agg_result['excluded_as_honeypot']} excluded as honeypots")
+        typer.echo("🔄 Aggregating into accounts...")
+        agg_service = AggregationService(conn)
+        agg_result = agg_service.aggregate_staging_to_accounts()
 
-            # Summary
-            typer.echo("\n✨ Pipeline complete!")
-            typer.echo(f"\nNext steps:")
-            typer.echo(f"  1. Score accounts: python -m sales_intel.services.scoring.score_accounts --db {db}")
-            typer.echo(f"  2. Enrich top accounts: python -m sales_intel.services.enrichment.run_enrichment --db {db} --top-n 50")
-            typer.echo(f"  3. Start API: uvicorn main:app --reload")
+        typer.echo(f"✅ Aggregation complete:")
+        typer.echo(f"   - {agg_result['accounts_created']} accounts created")
+        typer.echo(f"   - {agg_result['excluded_as_honeypot']} excluded as honeypots")
+
+        typer.echo("\n✨ Pipeline complete!")
+        typer.echo(f"\nNext steps:")
+        typer.echo(f"  1. Score accounts: python -m sales_intel.services.scoring.score_accounts --db {db}")
+        typer.echo(f"  2. Enrich top accounts: python -m sales_intel.services.enrichment.run_enrichment --db {db} --top-n 50")
+        typer.echo(f"  3. Start API: uvicorn main:app --reload")
 
     except Exception as e:
         typer.echo(f"❌ Pipeline failed: {e}", err=True)
         logfire.error("pipeline.failed", error=str(e))
         raise typer.Exit(1)
+    finally:
+        close_pool()
 
 
 if __name__ == "__main__":

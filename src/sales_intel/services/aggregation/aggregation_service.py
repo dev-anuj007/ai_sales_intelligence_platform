@@ -3,13 +3,13 @@ from typing import Any
 import duckdb
 import logfire
 
-from sales_intel.data.account_repo import AccountRepository
+from sales_intel.services.storage.account_storage import AccountStorageService
 
 
 class AggregationService:
     def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
         self.connection = connection
-        self.account_repo = AccountRepository(connection)
+        self.account_storage = AccountStorageService(connection)
 
     def aggregate_staging_to_accounts(self) -> dict[str, Any]:
         logfire.info("aggregation_service.start")
@@ -19,8 +19,10 @@ class AggregationService:
             self._build_account_top_records_index()
             self._mark_excluded_honeypots()
 
-            account_count = self.account_repo.count_all()
-            excluded_honeypot = self.account_repo.count_excluded_honeypot()
+            account_count = self.account_storage.count()
+            excluded_honeypot = self.connection.execute(
+                "SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = true"
+            ).fetchall()[0][0]
 
             summary = {
                 "status": "success",
