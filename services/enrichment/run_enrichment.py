@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import typer
 
 import logfire
@@ -18,11 +20,6 @@ def enrich_accounts(
         "--top-n",
         help="Number of top-ranked accounts to enrich (by risk_score)",
     ),
-    score_version: str = typer.Option(
-        "v1",
-        "--score-version",
-        help="Which scoring version to use for ranking",
-    ),
 ) -> None:
     """Enrich top-N highest-risk accounts with LLM analysis.
 
@@ -38,16 +35,13 @@ def enrich_accounts(
     typer.echo(f"Starting enrichment")
     typer.echo(f"   Database: PostgreSQL ({settings.postgres_database})")
     typer.echo(f"   Top N: {top_n}")
-    typer.echo(f"   Score version: {score_version}")
 
     try:
         pool = init_pool()
 
         typer.echo("Enriching top accounts...")
         enrichment_service = EnrichmentService()
-        result = enrichment_service.enrich_top_accounts(
-            top_n=top_n, score_version=score_version
-        )
+        result = asyncio.run(enrichment_service.enrich_top_accounts(top_n=top_n))
 
         typer.echo(f"Enrichment complete:")
         typer.echo(f"   - {result['enriched_count']} accounts enriched")

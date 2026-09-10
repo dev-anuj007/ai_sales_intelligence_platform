@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from services.llm.mock_client import MockLLMClient
 from services.llm.state import EnrichmentState
 from services.llm.workflow import create_enrichment_graph
 
@@ -9,7 +10,7 @@ from services.llm.workflow import create_enrichment_graph
 class TestEnrichmentStateCreation:
     """Test EnrichmentState creation and serialization."""
 
-    def test_create_state_minimal(self) -> None:
+    def test_create_state_minimal(self, mock_llm_client: MockLLMClient) -> None:
         """Test creating state with minimal data."""
         state = EnrichmentState(
             root_domain="example.com",
@@ -18,6 +19,7 @@ class TestEnrichmentStateCreation:
             exposures={"database": 1},
             http_titles=["Apache"],
             products=["nginx"],
+            llm_client=mock_llm_client,
         )
 
         assert state.root_domain == "example.com"
@@ -25,7 +27,7 @@ class TestEnrichmentStateCreation:
         assert state.signal_noise_result == ""
         assert state.company_name == ""
 
-    def test_state_to_dict(self) -> None:
+    def test_state_to_dict(self, mock_llm_client: MockLLMClient) -> None:
         """Test state serialization to dict."""
         state = EnrichmentState(
             root_domain="example.com",
@@ -36,6 +38,7 @@ class TestEnrichmentStateCreation:
             products=["MySQL"],
             signal_noise_result="signal",
             company_name="Example Corp",
+            llm_client=mock_llm_client,
         )
 
         state_dict = state.to_dict()
@@ -44,8 +47,9 @@ class TestEnrichmentStateCreation:
         assert state_dict["risk_score"] == 85.0
         assert state_dict["signal_noise_result"] == "signal"
         assert state_dict["company_name"] == "Example Corp"
+        assert "llm_client" not in state_dict
 
-    def test_state_from_dict(self) -> None:
+    def test_state_from_dict(self, mock_llm_client: MockLLMClient) -> None:
         """Test state creation from dict."""
         data = {
             "root_domain": "test.com",
@@ -62,14 +66,15 @@ class TestEnrichmentStateCreation:
             "errors": [],
         }
 
-        state = EnrichmentState.from_dict(data)
+        state = EnrichmentState.from_dict(data, mock_llm_client)
 
         assert state.root_domain == "test.com"
         assert state.risk_score == 50.0
         assert state.signal_noise_result == "noise"
         assert state.company_name == "Test Inc"
+        assert state.llm_client == mock_llm_client
 
-    def test_state_accumulates_errors(self) -> None:
+    def test_state_accumulates_errors(self, mock_llm_client: MockLLMClient) -> None:
         """Test state error tracking."""
         state = EnrichmentState(
             root_domain="example.com",
@@ -78,6 +83,7 @@ class TestEnrichmentStateCreation:
             exposures={},
             http_titles=[],
             products=[],
+            llm_client=mock_llm_client,
         )
 
         state.errors.append("Error 1")
@@ -116,7 +122,7 @@ class TestEnrichmentWorkflowCreation:
 class TestEnrichmentWorkflowExecution:
     """Test enrichment workflow execution (mocked)."""
 
-    def test_workflow_accepts_state(self) -> None:
+    def test_workflow_accepts_state(self, mock_llm_client: MockLLMClient) -> None:
         """Test workflow can be invoked with state."""
         graph = create_enrichment_graph()
 
@@ -127,13 +133,14 @@ class TestEnrichmentWorkflowExecution:
             exposures={"database": 1, "legacy_protocol": 2},
             http_titles=["Apache/2.4"],
             products=["OpenSSL", "MySQL"],
+            llm_client=mock_llm_client,
         )
 
         initial_state = state.to_dict()
         assert initial_state["root_domain"] == "test.example.com"
         assert initial_state["company_name"] == ""
 
-    def test_state_tracks_costs(self) -> None:
+    def test_state_tracks_costs(self, mock_llm_client: MockLLMClient) -> None:
         """Test state can track costs per node."""
         state = EnrichmentState(
             root_domain="example.com",
@@ -142,6 +149,7 @@ class TestEnrichmentWorkflowExecution:
             exposures={},
             http_titles=[],
             products=[],
+            llm_client=mock_llm_client,
         )
 
         state.cost_tracking["signal_noise"] = {
@@ -152,7 +160,7 @@ class TestEnrichmentWorkflowExecution:
 
         assert state.cost_tracking["signal_noise"]["input_tokens"] == 150
 
-    def test_state_accumulates_all_costs(self) -> None:
+    def test_state_accumulates_all_costs(self, mock_llm_client: MockLLMClient) -> None:
         """Test state accumulates costs from all nodes."""
         state = EnrichmentState(
             root_domain="example.com",
@@ -161,6 +169,7 @@ class TestEnrichmentWorkflowExecution:
             exposures={},
             http_titles=[],
             products=[],
+            llm_client=mock_llm_client,
         )
 
         state.cost_tracking["signal_noise"] = {
@@ -194,7 +203,7 @@ class TestEnrichmentWorkflowExecution:
 class TestEnrichmentWorkflowIntegration:
     """Integration tests for enrichment workflow."""
 
-    def test_workflow_state_flow(self) -> None:
+    def test_workflow_state_flow(self, mock_llm_client: MockLLMClient) -> None:
         """Test state flows through workflow correctly."""
         initial_state = EnrichmentState(
             root_domain="acme.example.com",
@@ -203,6 +212,7 @@ class TestEnrichmentWorkflowIntegration:
             exposures={"database": 1},
             http_titles=["Nginx/1.20"],
             products=["PostgreSQL"],
+            llm_client=mock_llm_client,
         )
 
         assert initial_state.signal_noise_result == ""
@@ -210,7 +220,7 @@ class TestEnrichmentWorkflowIntegration:
         assert initial_state.risk_narrative == ""
         assert initial_state.outreach_draft == ""
 
-    def test_workflow_handles_empty_inputs(self) -> None:
+    def test_workflow_handles_empty_inputs(self, mock_llm_client: MockLLMClient) -> None:
         """Test workflow handles empty/minimal inputs."""
         state = EnrichmentState(
             root_domain="minimal.com",
@@ -219,6 +229,7 @@ class TestEnrichmentWorkflowIntegration:
             exposures={},
             http_titles=[],
             products=[],
+            llm_client=mock_llm_client,
         )
 
         assert state.root_domain == "minimal.com"

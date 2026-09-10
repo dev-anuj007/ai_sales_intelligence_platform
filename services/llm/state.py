@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from services.llm.client import LLMClient
+
 
 @dataclass
 class EnrichmentState:
@@ -22,9 +24,10 @@ class EnrichmentState:
 
     cost_tracking: dict[str, Any] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    llm_client: LLMClient | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert state to dict for serialization."""
+        """Convert state to dict for serialization (excludes llm_client)."""
         return {
             "root_domain": self.root_domain,
             "risk_score": self.risk_score,
@@ -41,6 +44,6 @@ class EnrichmentState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> EnrichmentState:
-        """Create state from dict."""
-        return cls(**data)
+    def from_dict(cls, data: dict[str, Any], llm_client: LLMClient | None = None) -> EnrichmentState:
+        """Create state from dict and optionally inject llm_client."""
+        return cls(llm_client=llm_client, **data)

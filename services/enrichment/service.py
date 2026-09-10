@@ -4,6 +4,9 @@ from typing import Any
 
 import logfire
 
+from config import settings
+from services.llm.anthropic_client import AnthropicLLMClient
+from services.llm.client import LLMClient
 from services.llm.cost_model import CostTracker
 from services.llm.state import EnrichmentState
 from services.llm.workflow import create_enrichment_graph
@@ -19,8 +22,10 @@ class EnrichmentService:
     def __init__(
         self,
         account_storage: PostgresAsyncAccountStorageService | None = None,
+        llm_client: LLMClient | None = None,
     ) -> None:
         self.account_storage = account_storage or PostgresAsyncAccountStorageService()
+        self.llm_client = llm_client or AnthropicLLMClient(settings.anthropic_api_key)
         self.graph = create_enrichment_graph()
         self.total_cost_usd: float = 0.0
 
@@ -38,26 +43,29 @@ class EnrichmentService:
         try:
             state = self._create_state_from_account(account)
 
-            result_state = self.graph.invoke(state.to_dict())
+            state_dict = state.to_dict()
+            state_dict["llm_client"] = self.llm_client
 
-            cost_usd = self._calculate_cost(result_state.get("cost_tracking", {}))
+            result_dict = self.graph.invoke(state_dict)
+
+            cost_usd = self._calculate_cost(result_dict.get("cost_tracking", {}))
             self.total_cost_usd += cost_usd
 
             enrichment_data = {
-                "company_name": result_state.get("company_name", ""),
-                "risk_narrative": result_state.get("risk_narrative", ""),
-                "outreach_draft": result_state.get("outreach_draft", ""),
+                "company_name": result_dict.get("company_name", ""),
+                "risk_narrative": result_dict.get("risk_narrative", ""),
+                "outreach_draft": result_dict.get("outreach_draft", ""),
                 "cost_usd": cost_usd,
-                "errors": result_state.get("errors", []),
+                "errors": result_dict.get("errors", []),
             }
 
-            if not result_state.get("errors"):
+            if not result_dict.get("errors"):
                 await self.account_storage.update_enrichment(
                     root_domain=account.root_domain,
                     inferred_company_name=enrichment_data["company_name"],
-                    risk_narrative=enrichment_data["risk_narrative"],
+                    inferred_industry=None,
+                    narrative=enrichment_data["risk_narrative"],
                     outreach_draft=enrichment_data["outreach_draft"],
-                    enrichment_cost_usd=cost_usd,
                 )
 
             logfire.info(
@@ -143,6 +151,7 @@ class EnrichmentService:
             exposures={k: v for k, v in exposures.items() if v > 0},
             http_titles=getattr(account, "sample_http_titles", []),
             products=getattr(account, "sample_products", []),
+            llm_client=self.llm_client,
         )
 
     @staticmethod

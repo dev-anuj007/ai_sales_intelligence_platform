@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage
-
+from config import settings
 from services.llm.prompts.v1 import SignalNoisePromptV1
 from services.llm.state import EnrichmentState
 
@@ -10,7 +8,9 @@ from services.llm.state import EnrichmentState
 def signal_noise_node(state: EnrichmentState) -> EnrichmentState:
     """Classify exposures as signal (real risk) or noise (false alarm)."""
     try:
-        llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0.0)
+        if not state.llm_client:
+            state.errors.append("signal_noise_node failed: llm_client not provided")
+            return state
 
         prompt = SignalNoisePromptV1()
         prompt_text = prompt.render(
@@ -19,18 +19,15 @@ def signal_noise_node(state: EnrichmentState) -> EnrichmentState:
             titles_text=prompt.render_titles(state.http_titles),
         )
 
-        message = HumanMessage(content=prompt_text)
-        response = llm.invoke([message])
+        response_text, metadata = state.llm_client.generate(prompt_text, settings.haiku_model)
 
-        state.signal_noise_result = response.content.strip().lower()
+        state.signal_noise_result = response_text.strip().lower()
 
-        if "usage_metadata" in response.response_metadata:
-            usage = response.response_metadata["usage_metadata"]
-            state.cost_tracking["signal_noise"] = {
-                "model": "claude-haiku-4-5-20251001",
-                "input_tokens": usage.get("input_tokens", 0),
-                "output_tokens": usage.get("output_tokens", 0),
-            }
+        state.cost_tracking["signal_noise"] = {
+            "model": settings.haiku_model,
+            "input_tokens": metadata.get("input_tokens", 0),
+            "output_tokens": metadata.get("output_tokens", 0),
+        }
 
     except Exception as e:
         state.errors.append(f"signal_noise_node failed: {str(e)}")
