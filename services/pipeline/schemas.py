@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DatabaseExposure(BaseModel):
@@ -8,8 +8,7 @@ class DatabaseExposure(BaseModel):
     port: int | None = None
     service_type: str | None = None
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LegacyProtocolExposure(BaseModel):
@@ -17,16 +16,14 @@ class LegacyProtocolExposure(BaseModel):
     port: int | None = None
     protocol_type: str | None = None
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class IoTOTExposure(BaseModel):
     is_exposed: bool = False
     device_type: str | None = None
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class VulnerabilityData(BaseModel):
@@ -37,8 +34,7 @@ class VulnerabilityData(BaseModel):
     cve_ids: list[str] = Field(default_factory=list)
     count_critical: int = 0
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TLSSecurityData(BaseModel):
@@ -47,8 +43,7 @@ class TLSSecurityData(BaseModel):
     has_weak_version: bool = False
     jarm_fingerprint: str | None = None
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class HTTPWebData(BaseModel):
@@ -57,16 +52,14 @@ class HTTPWebData(BaseModel):
     status_code: int | None = None
     has_securitytxt: bool = False
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SoftwareMaturityData(BaseModel):
     is_eol: bool = False
     is_honeypot: bool = False
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ExtractedFeatures(BaseModel):
@@ -78,8 +71,7 @@ class ExtractedFeatures(BaseModel):
     http: HTTPWebData
     software_maturity: SoftwareMaturityData
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
     def to_db_dict(self) -> dict[str, object]:
         return {
