@@ -52,11 +52,13 @@ async def get_account(
     root_domain: str,
     storage: AccountStorageService = Depends(get_account_storage),
 ) -> dict[str, Any]:
-    """Get full account details including enrichment."""
+    """Get full account details including enrichment and top records."""
     account = storage.get(root_domain)
 
     if not account:
         return {"error": f"Account {root_domain} not found"}
+
+    top_records = storage.get_top_records_for_account(root_domain, limit=20)
 
     return {
         "root_domain": account.root_domain,
@@ -83,4 +85,5 @@ async def get_account(
         "inferred_industry": account.inferred_industry,
         "narrative": account.narrative,
         "outreach_draft": account.outreach_draft,
+        "top_records": top_records,
     }

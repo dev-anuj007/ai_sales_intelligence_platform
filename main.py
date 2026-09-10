@@ -11,7 +11,9 @@ from services.aggregation.api import router as aggregation_router
 from services.pipeline.api import router as pipeline_router
 from services.scoring.api import router as scoring_router
 from services.enrichment.api import router as enrichment_router
+from services.enrichment.evals_api import router as evals_router
 from services.storage.accounts_api import router as accounts_router
+from services.storage.traces_api import router as traces_router
 from services.storage import init_pool, close_pool
 from services.storage.migrate import apply_schema
 
@@ -57,6 +59,8 @@ app.include_router(pipeline_router)
 app.include_router(aggregation_router)
 app.include_router(scoring_router)
 app.include_router(enrichment_router)
+app.include_router(traces_router)
+app.include_router(evals_router)
 
 
 if __name__ == "__main__":
