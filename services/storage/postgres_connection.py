@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager, contextmanager
-from typing import AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Generator
 
 import logfire
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from config import settings
@@ -65,7 +65,7 @@ class PostgresConnectionPool:
             echo=False,
         )
 
-        self.async_session_local = sessionmaker(
+        self.async_session_local = async_sessionmaker(
             self.async_engine,
             class_=AsyncSession,
             autocommit=False,
@@ -76,7 +76,7 @@ class PostgresConnectionPool:
         # Log SQL queries in debug mode
         @event.listens_for(Engine, "before_cursor_execute")
         def receive_before_cursor_execute(
-            conn: any, cursor: any, statement: str, parameters: any, context: any, executemany: any
+            conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: Any
         ) -> None:
             if settings.log_level == "DEBUG":
                 logfire.debug("sql_execute", statement=statement)
