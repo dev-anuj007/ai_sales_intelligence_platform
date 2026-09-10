@@ -17,7 +17,7 @@ def get_account_storage() -> AccountStorageService:
 def list_accounts(
     limit: int = Query(100, ge=1, le=10000),
     offset: int = Query(0, ge=0),
-    sort: str = Query("root_domain", regex="^(root_domain|risk_score_desc|risk_score_asc)$"),
+    sort: str = Query("root_domain", pattern="^(root_domain|risk_score_desc|risk_score_asc)$"),
     storage: AccountStorageService = Depends(get_account_storage),
 ) -> dict[str, Any]:
     """List accounts with optional sorting and pagination."""

@@ -42,12 +42,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 uv sync                          # Install all dependencies
 
-# PostgreSQL setup (recommended for production; see docs/postgres_migration.md)
-export DB_TYPE=postgres
+# PostgreSQL setup (required; see docs/postgres_migration.md)
 uv run python scripts/setup_postgres.py  # Create database & tables
-
-# OR use DuckDB (default, single-file; no setup needed)
-export DB_TYPE=duckdb
 ```
 
 ### Running Tests
@@ -65,8 +61,7 @@ uv run mypy services/           # Strict mode (required before commit)
 ### Development: Full Data Pipeline
 
 ```bash
-# 1. Ensure PostgreSQL is running and DB_TYPE=postgres
-export DB_TYPE=postgres
+# 1. Ensure PostgreSQL is running (see setup above)
 
 # 2. Ingest + aggregate sample data (5000 records)
 uv run python -m services.pipeline.run_pipeline \
@@ -131,8 +126,8 @@ uv run python services/enrichment/evals/run_eval.py \
    - Mock-first design (swap via env var once Anthropic key available)
 
 5. **Storage** (`services/storage/`)
-   - Shared data access layer (DuckDB)
-   - Protocol-based abstractions (extensible to Postgres, Redis)
+   - Shared data access layer (PostgreSQL)
+   - Protocol-based abstractions (extensible to Redis, S3)
    - Repositories: AccountStorageService, StagingStorageService, TraceStorageService
 
 ### Three-Tier Layering (Critical)
@@ -185,8 +180,8 @@ _storage = get_connection()  # Global mutable state
 
 ### 3. Mock-First Testing
 - **90%+ coverage** on service layer with mocked storage
-- Tests run offline (<1 second per test, no DB/Docker required)
-- Integration tests (< 20) hit tmp DuckDB only
+- Tests run offline (<1 second per test, no DB required)
+- Integration tests (< 20) hit ephemeral PostgreSQL only
 - Real storage tests separate from unit tests
 
 ### 4. Type Safety (mypy --strict)
@@ -237,7 +232,7 @@ Tests must not interfere with each other. Use instance state + dependency inject
 All configuration via `config.py` (Pydantic Settings) + enums. Tune for different deployments, A/B test, respond to production issues.
 
 ### No Dynamic SQL or Unsafe Queries
-Use parameterized queries always. DuckDB uses ? placeholders, Postgres uses %s.
+Use parameterized queries always. PostgreSQL uses %s placeholders with SQLAlchemy.
 
 ### Immutable Domain Models
 Pydantic models with `frozen = True`. Prevents accidental mutations, makes data flow explicit.
@@ -247,15 +242,9 @@ Enforced naming: `account_storage.py` contains exactly `AccountStorageService`, 
 
 ---
 
-## Storage Backend Extensibility
+## Storage Backend (PostgreSQL-Only)
 
-**Supported:** DuckDB (default, single-file) and **PostgreSQL** (production-ready, concurrent writes)
-
-Selected via `DB_TYPE` environment variable:
-```bash
-export DB_TYPE=postgres              # PostgreSQL (production)
-export DB_TYPE=duckdb                # DuckDB (default, development)
-```
+**Database:** PostgreSQL 12+ with SQLAlchemy 2.0 ORM via SQLModel
 
 All storage services implement `Protocol` interfaces in `services/storage/abstractions.py`:
 
@@ -266,21 +255,17 @@ class StorageService(Protocol[T]):
     def create(self, data: dict) -> T: ...
 ```
 
-**Factory pattern** in `services/storage/factory.py` automatically selects backend:
-
-```python
-# Automatic backend selection based on config
-if settings.db_type == "postgres":
-    AccountStorageService = PostgresAccountStorageService
-else:
-    AccountStorageService = DuckDBAccountStorageService
-```
-
-**Zero changes to `api.py` or `service.py`** — they work with both backends transparently via the Protocol interface.
+**PostgreSQL implementations** in `services/storage/postgres_*.py`:
+- `PostgresAccountStorageService` — account CRUD + queries
+- `PostgresStagingStorageService` — staging record management
+- `PostgresTraceStorageService` — LLM trace logging
+- `PostgresNamesStorageServiceImpl` — company name cache
 
 **PostgreSQL setup:** See [docs/postgres_migration.md](docs/postgres_migration.md) for detailed migration guide.
 
-Future backends: Redis (cache), S3 (file storage), MongoDB (documents)
+**Connection pooling:** SQLAlchemy session pool in `postgres_connection.py`, reused by all services.
+
+**Future backends:** Redis (cache layer), S3 (file storage), Elasticsearch (full-text search)
 
 ---
 
@@ -289,27 +274,19 @@ Future backends: Redis (cache), S3 (file storage), MongoDB (documents)
 ```
 /
 ├── services/                          # Microservices at root (independently deployable)
-│   ├── storage/                       # Shared data access layer (DuckDB + PostgreSQL)
+│   ├── storage/                       # Shared data access layer (PostgreSQL)
 │   │   ├── abstractions.py            # Protocol interfaces
 │   │   ├── models.py                  # Pydantic domain models
 │   │   ├── sqlmodel_models.py         # SQLModel ORM (PostgreSQL)
-│   │   ├── factory.py                 # Backend selection (DB_TYPE config)
 │   │   ├── enums.py                   # StorageType, TableType enums
-│   │   ├── migrate.py                 # Schema: DuckDB .sql + PostgreSQL SQLModel
-│   │   │
-│   │   ├── duckdb_connection.py       # DuckDB connection pool
-│   │   ├── account_storage.py         # DuckDB account storage
-│   │   ├── staging_storage.py         # DuckDB staging storage
-│   │   ├── trace_storage.py           # DuckDB trace storage
-│   │   ├── names_storage.py           # DuckDB names cache
+│   │   ├── migrate.py                 # PostgreSQL schema migrations
 │   │   │
 │   │   ├── postgres_connection.py     # PostgreSQL connection pool (SQLAlchemy)
-│   │   ├── postgres_account_storage.py    # PostgreSQL account storage
-│   │   ├── postgres_staging_storage.py    # PostgreSQL staging storage
-│   │   ├── postgres_trace_storage.py      # PostgreSQL trace storage
-│   │   ├── postgres_names_storage.py      # PostgreSQL names cache
+│   │   ├── postgres_account_storage.py    # Account CRUD + queries
+│   │   ├── postgres_staging_storage.py    # Staging record management
+│   │   ├── postgres_trace_storage.py      # LLM trace logging
+│   │   ├── postgres_names_storage.py      # Company name cache
 │   │   │
-│   │   ├── db/                        # DuckDB files (.gitignore)
 │   │   └── tests/
 │   │
 │   ├── pipeline/                      # Ingest service
@@ -489,8 +466,7 @@ Your PR will be reviewed against these criteria:
 Configure via `.env` file or CLI. Key variables:
 
 ```bash
-# Database Configuration
-DB_TYPE=postgres                  # "postgres" or "duckdb" (default: postgres)
+# PostgreSQL Configuration
 POSTGRES_HOST=localhost           # PostgreSQL host
 POSTGRES_PORT=5432               # PostgreSQL port
 POSTGRES_DATABASE=sales_intel     # Database name
@@ -499,13 +475,10 @@ POSTGRES_PASSWORD=postgres        # Database password
 
 # LLM Configuration
 LLM_CLIENT=mock                   # "mock" or "anthropic"
-ANTHROPIC_API_KEY=...             # Required if llm_client="anthropic"
+ANTHROPIC_API_KEY=...             # Required if LLM_CLIENT="anthropic"
 
 # Logging
 LOG_LEVEL=INFO                    # DEBUG, INFO, WARNING, ERROR
-
-# DuckDB (legacy)
-DUCKDB_PATH=...                   # Custom DuckDB path (only if DB_TYPE=duckdb)
 ```
 
 See `config.py` for complete settings list. For PostgreSQL setup, see [docs/postgres_migration.md](docs/postgres_migration.md).
@@ -525,10 +498,9 @@ See `config.py` for complete settings list. For PostgreSQL setup, see [docs/post
 
 ## Known Gotchas
 
-- **DuckDB single-writer:** Only one process can write at a time. Use PostgreSQL (`DB_TYPE=postgres`) for production with concurrent writes.
-- **Factory pattern required:** Always import storage services from `services.storage.factory`, not directly. This ensures correct backend is selected.
-- **Protocol vs Concrete:** Always depend on `Protocol[T]`, never concrete `AccountStorageService` class. This enables swappable backends.
-- **SQLModel ORM:** PostgreSQL storage uses SQLModel (Pydantic + SQLAlchemy). DuckDB uses raw parameterized queries for legacy compatibility.
-- **Session management:** PostgreSQL services create/close sessions automatically. Pass `session=None` to auto-create, or pass explicit `Session` for testing.
+- **PostgreSQL required:** All storage layers require a running PostgreSQL instance. See `scripts/setup_postgres.py` for local setup.
+- **Session management:** PostgreSQL services create/close sessions automatically via SQLAlchemy pool. Pass `session=None` to auto-create, or pass explicit `Session` for testing.
+- **SQLModel ORM:** All database access uses SQLModel (Pydantic + SQLAlchemy 2.0). Leverage type safety and automatic schema validation.
+- **Connection pooling:** SQLAlchemy session pool is thread-safe. Services reuse connections from `postgres_connection.get_pool()`.
 - **Fixtures commit-ready:** Test fixtures in `services/pipeline/data/fixtures/` are committed to git; use small zstd files.
-- **Mock-first design:** Unit tests use mocked storage. Integration tests (`@pytest.mark.integration`) use real DuckDB or PostgreSQL.
+- **Mock-first design:** Unit tests use mocked storage. Integration tests (`@pytest.mark.integration`) use real ephemeral PostgreSQL.

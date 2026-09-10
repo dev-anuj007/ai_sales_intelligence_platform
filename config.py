@@ -13,14 +13,11 @@ class Settings(BaseSettings):
     data_dir: Path = project_root / "data"
     raw_data_path: Path = data_dir / "raw" / "shodan_scan.jsonl.zst"
     fixtures_dir: Path = data_dir / "fixtures"
-    db_dir: Path = project_root / "db"
-    duckdb_path: Path = db_dir / "sales_intel.duckdb"
     traces_dir: Path = project_root / "traces"
     traces_jsonl_path: Path = traces_dir / "llm_traces.jsonl"
     prompts_dir: Path = project_root / "prompts"
 
     # ===== Database Configuration =====
-    db_type: Literal["duckdb", "postgres"] = "postgres"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_database: str = "sales_intel"

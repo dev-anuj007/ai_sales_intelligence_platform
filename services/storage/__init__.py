@@ -9,11 +9,6 @@ from services.storage.factory import (
 )
 from services.storage.models import Account, StagingRecord
 
-try:
-    from services.storage.duckdb_connection import DuckDBConnectionPool
-except ImportError:
-    DuckDBConnectionPool = None  # type: ignore
-
 
 def close_pool() -> None:
     """Close the connection pool."""
@@ -27,7 +22,6 @@ __all__ = [
     "TableType",
     "Account",
     "StagingRecord",
-    "DuckDBConnectionPool",
     "AccountStorageService",
     "StagingStorageService",
     "TraceStorageService",

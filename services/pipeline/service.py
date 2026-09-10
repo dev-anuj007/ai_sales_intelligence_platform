@@ -5,7 +5,7 @@ from typing import Any
 
 import logfire
 
-from services.storage.staging_storage import StagingStorageService
+from services.storage import StagingStorageService
 from services.pipeline.normalizer import normalize_record
 from services.pipeline.stream_reader import iter_batches
 
