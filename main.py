@@ -5,6 +5,8 @@ from fastapi import FastAPI
 
 from services.logger.middleware import TraceMiddleware
 from services.logger.factory import get_logger_sync
+from services.common.errors import RetriableError, NonRetriableError
+from services.common.error_handler import error_handler
 from services.aggregation.api import router as aggregation_router
 from services.pipeline.api import router as pipeline_router
 from services.scoring.api import router as scoring_router
@@ -36,6 +38,10 @@ app = FastAPI(
 
 # Add trace middleware FIRST (before other middleware) for proper context propagation
 app.add_middleware(TraceMiddleware)
+
+# Add error handlers for structured error responses
+app.add_exception_handler(RetriableError, error_handler)  # type: ignore
+app.add_exception_handler(NonRetriableError, error_handler)  # type: ignore
 
 logfire.instrument_system_metrics()
 logfire.instrument_fastapi(app)
