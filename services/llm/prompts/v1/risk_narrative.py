@@ -10,32 +10,31 @@ class RiskNarrativePromptV1(PromptTemplate):
     use_case = "risk_narrative_generation"
     template = """You are a security consultant preparing a risk summary for a business stakeholder.
 
-Domain: {domain}
-Risk Score: {risk_score}/100 (0=lowest, 100=highest)
+    Domain: {domain}
+    Risk Score: {risk_score}/100 (0=lowest, 100=highest)
 
-Risk Indicators:
-{signal_tags_text}
+    Risk Indicators:
+    {signal_tags_text}
 
-Exposure Breakdown:
-{exposures_text}
+    Exposure Breakdown:
+    {exposures_text}
 
-Your task: Write a brief, business-oriented explanation of why this domain is a security concern.
+    Your task: Write a brief, business-oriented explanation of why this domain is a security concern.
 
-Guidelines:
-- Use business language, NOT technical jargon
-- Focus on business impact and likelihood
-- 2-3 sentences maximum
-- Avoid acronyms (no CVSS, EPSS, CVE)
-- Examples of GOOD narratives:
-  * "This domain hosts a publicly accessible database with millions of customer records at risk of theft."
-  * "The infrastructure runs outdated protocols vulnerable to credential theft and lateral movement."
-  * "This domain has known vulnerabilities in critical software with active exploits in the wild."
+    Guidelines:
+    - Use business language, NOT technical jargon
+    - Focus on business impact and likelihood
+    - 2-3 sentences maximum
+    - Avoid acronyms (no CVSS, EPSS, CVE)
+    - Examples of GOOD narratives:
+    * "This domain hosts a publicly accessible database with millions of customer records at risk of theft."
+    * "The infrastructure runs outdated protocols vulnerable to credential theft and lateral movement."
+    * "This domain has known vulnerabilities in critical software with active exploits in the wild."
 
-Risk narrative:"""
+    Risk narrative:"""
 
     @staticmethod
     def render_signal_tags(tags: list[str]) -> str:
-        """Format signal tags for template."""
         if not tags:
             return "- None"
         tag_descriptions = {
@@ -57,7 +56,6 @@ Risk narrative:"""
 
     @staticmethod
     def render_exposures(exposures: dict[str, int]) -> str:
-        """Format exposures breakdown for template."""
         if not exposures:
             return "- None"
         lines = []

@@ -17,7 +17,6 @@ class MockLLMClient:
         exposures: list[str],
         http_titles: list[str],
     ) -> LLMResponse:
-        """Mock signal/noise classification (deterministic based on input)."""
         self.call_count += 1
 
         is_signal = len(exposures) > 0
@@ -46,7 +45,6 @@ class MockLLMClient:
         http_titles: list[str],
         products: list[str],
     ) -> LLMResponse:
-        """Mock company name inference (deterministic based on domain)."""
         self.call_count += 1
 
         company = domain.split(".")[0].title()
@@ -75,7 +73,6 @@ class MockLLMClient:
         signal_tags: list[str],
         exposures: dict[str, int],
     ) -> LLMResponse:
-        """Mock risk narrative generation (deterministic based on inputs)."""
         self.call_count += 1
 
         narrative = f"The domain {domain} has a risk score of {risk_score:.1f}/100."
@@ -103,7 +100,6 @@ class MockLLMClient:
         risk_score: float,
         narrative: str,
     ) -> LLMResponse:
-        """Mock outreach email draft generation (deterministic based on inputs)."""
         self.call_count += 1
 
         draft = (
@@ -134,11 +130,9 @@ class MockLLMClient:
         )
 
     def get_total_cost(self) -> float:
-        """Return cumulative cost in USD."""
         return self.cost_tracker.get_total_cost()
 
     def reset_cost_tracking(self) -> None:
-        """Clear cost tracking for next batch."""
         self.cost_tracker.reset()
 
     def __repr__(self) -> str:
