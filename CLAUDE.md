@@ -503,4 +503,4 @@ See `config.py` for complete settings list. For PostgreSQL setup, see [docs/post
 - **SQLModel ORM:** All database access uses SQLModel (Pydantic + SQLAlchemy 2.0). Leverage type safety and automatic schema validation.
 - **Connection pooling:** SQLAlchemy session pool is thread-safe. Services reuse connections from `postgres_connection.get_pool()`.
 - **Fixtures commit-ready:** Test fixtures in `services/pipeline/data/fixtures/` are committed to git; use small zstd files.
-- **Mock-first design:** Unit tests use mocked storage. Integration tests (`@pytest.mark.integration`) use real ephemeral PostgreSQL.
+- **Mock-first design:** Unit tests use mocked storage. Integration tests (`@pytest.mark.integration`) use real PostgreSQL (test database).

@@ -126,12 +126,11 @@ All services are dependency-injected. Services have zero knowledge of HTTP/FastA
 ```
 /
 ├── services/                Self-contained microservices
-│   ├── storage/             Shared data access layer
+│   ├── storage/             Shared data access layer (PostgreSQL)
 │   │   ├── abstractions.py  Protocol interfaces
 │   │   ├── postgres_*.py    PostgreSQL implementations (SQLAlchemy/SQLModel)
-│   │   ├── duckdb_*.py      DuckDB implementations (legacy support)
-│   │   ├── sqlmodel_models.py  ORM models
-│   │   ├── db/              DuckDB files (.gitignore, for local dev)
+│   │   ├── sqlmodel_models.py  SQLModel ORM definitions
+│   │   ├── factory.py       Backend factory (PostgreSQL)
 │   │   └── tests/           Storage layer tests
 │   │
 │   ├── pipeline/            Data ingestion service
