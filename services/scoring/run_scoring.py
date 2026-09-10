@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import typer
 
 import logfire
@@ -39,7 +41,7 @@ def score_accounts(
 
         typer.echo("Scoring accounts...")
         scoring_service = ScoringService()
-        result = scoring_service.score_accounts(score_version=score_version)
+        result = asyncio.run(scoring_service.score_accounts(score_version=score_version))
 
         typer.echo(f"Scoring complete:")
         typer.echo(f"   - {result['scores_applied']} accounts scored")
