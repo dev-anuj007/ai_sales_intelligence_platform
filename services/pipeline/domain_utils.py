@@ -43,3 +43,7 @@ _default_extractor = DomainExtractor()
 
 def get_root_domain(record: dict[str, Any]) -> str | None:
     return _default_extractor.extract(record)
+
+
+def is_ip_only(record: dict[str, Any]) -> bool:
+    return _default_extractor.is_ip_only(record)
