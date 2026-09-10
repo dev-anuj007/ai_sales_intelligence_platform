@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import logfire
 from sqlalchemy import text
 
+from services.logger.factory import get_logger
+from services.logger.context import TraceContext
 from services.storage import AccountStorageService, get_pool
 
 
@@ -13,9 +14,11 @@ class AggregationService:
         self.pool = get_pool()
         self.account_storage = account_storage or AccountStorageService()
         self.connection = self.pool.get_connection()
+        self.logger = get_logger()
 
     def aggregate_staging_to_accounts(self) -> dict[str, Any]:
-        logfire.info("aggregation_service.start")
+        span_id = TraceContext.new_span_id("aggregation")
+        self.logger.info("aggregation_service.start")
 
         try:
             self._aggregate_accounts_sql()
@@ -35,14 +38,15 @@ class AggregationService:
                 "excluded_as_honeypot": excluded_honeypot,
             }
 
-            logfire.info("aggregation_service.complete", **summary)
+            self.logger.info("aggregation_service.complete", **summary)
             return summary
 
         except Exception as e:
-            logfire.error("aggregation_service.failed", error=str(e))
+            self.logger.error("aggregation_service.failed", error=e)
             raise
 
     def _aggregate_accounts_sql(self) -> None:
+        TraceContext.new_span_id("aggregate_sql")
         sql = text("""
             INSERT INTO accounts (
                 root_domain, record_count, asset_count, distinct_ips, distinct_ports,
@@ -115,9 +119,10 @@ class AggregationService:
         """)
         self.connection.execute(sql)
         self.connection.commit()
-        logfire.info("aggregation_service.accounts_aggregated")
+        self.logger.info("aggregation_service.accounts_aggregated")
 
     def _build_account_top_records_index(self) -> None:
+        TraceContext.new_span_id("build_top_records")
         sql = text("""
             INSERT INTO account_top_records (root_domain, record_id, rank)
             SELECT root_domain, record_id, rn FROM (
@@ -137,9 +142,10 @@ class AggregationService:
         """)
         self.connection.execute(sql)
         self.connection.commit()
-        logfire.info("aggregation_service.account_top_records_built")
+        self.logger.info("aggregation_service.account_top_records_built")
 
     def _mark_excluded_honeypots(self) -> None:
+        TraceContext.new_span_id("mark_honeypots")
         sql = text("""
             UPDATE accounts
             SET excluded_as_honeypot = true
@@ -150,4 +156,4 @@ class AggregationService:
         count = self.connection.execute(
             text("SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = true")
         ).fetchall()[0][0]
-        logfire.info("aggregation_service.honeypots_marked", count=count)
+        self.logger.info("aggregation_service.honeypots_marked", count=count)

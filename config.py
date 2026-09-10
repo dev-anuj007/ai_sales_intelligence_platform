@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     max_records_to_ingest: int | None = None
 
     # ===== Logging Configuration =====
-    logfire_enabled: bool = True
+    log_backend: Literal["logfire", "stdlib", "noop"] = "logfire"
     log_level: str = "INFO"
 
     # ===== Environment =====
@@ -58,8 +58,8 @@ class Settings(BaseSettings):
 
     def __post_init__(self) -> None:
         """Ensure required directories exist."""
-        self.db_dir.mkdir(parents=True, exist_ok=True)
         self.traces_dir.mkdir(parents=True, exist_ok=True)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         self.fixtures_dir.mkdir(parents=True, exist_ok=True)
 
 
