@@ -5,13 +5,13 @@ from typing import Any
 import logfire
 
 from services.storage.postgres_async_account_storage import PostgresAsyncAccountStorageService
-from services.storage.postgres_names_storage import NamesStorageServiceImpl
+from services.storage.postgres_names_storage import PostgresNamesStorageServiceImpl
 
 
 class EnrichmentService:
-	def __init__(self, account_storage: PostgresAsyncAccountStorageService | None = None, names_storage: NamesStorageServiceImpl | None = None) -> None:
+	def __init__(self, account_storage: PostgresAsyncAccountStorageService | None = None, names_storage: PostgresNamesStorageServiceImpl | None = None) -> None:
 		self.account_storage = account_storage or PostgresAsyncAccountStorageService()
-		self.names_storage = names_storage or NamesStorageServiceImpl()
+		self.names_storage = names_storage or PostgresNamesStorageServiceImpl()
 
 	async def enrich_top_accounts(self, top_n: int = 50, score_version: str = "v1") -> dict[str, Any]:
 		logfire.info("enrichment_service.start", top_n=top_n, score_version=score_version)
