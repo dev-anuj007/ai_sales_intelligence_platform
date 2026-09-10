@@ -25,4 +25,4 @@ async def ingest_records(
     limit: int | None = None,
     service: IngestService = Depends(get_ingest_service),
 ) -> dict[str, Any]:
-    return service.ingest(Path(input_path), batch_size=batch_size, limit=limit)
+    return await service.ingest(Path(input_path), batch_size=batch_size, limit=limit)

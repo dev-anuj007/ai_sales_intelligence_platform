@@ -16,7 +16,7 @@ class IngestService:
         self.total_records_processed = 0
         self.total_records_inserted = 0
 
-    def ingest(
+    async def ingest(
         self,
         input_path: Path | str,
         batch_size: int = 5000,

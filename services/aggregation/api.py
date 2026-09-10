@@ -18,4 +18,4 @@ def get_aggregation_service() -> AggregationService:
 
 @router.post("/run")
 async def run_aggregation(service: AggregationService = Depends(get_aggregation_service)) -> dict[str, Any]:
-    return service.aggregate_staging_to_accounts()
+    return await service.aggregate_staging_to_accounts()

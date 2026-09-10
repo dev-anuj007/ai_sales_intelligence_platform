@@ -16,7 +16,7 @@ class AggregationService:
         self.connection = self.pool.get_connection()
         self.logger = get_logger()
 
-    def aggregate_staging_to_accounts(self) -> dict[str, Any]:
+    async def aggregate_staging_to_accounts(self) -> dict[str, Any]:
         span_id = TraceContext.new_span_id("aggregation")
         self.logger.info("aggregation_service.start")
 
