@@ -14,7 +14,7 @@ Build a **sales intelligence backend** that identifies businesses needing cybers
 ✅ **Backend only** (no UI, no hosting/deployment this phase)
 ✅ **Microservices-first** (each service independently deployable)
 ✅ **Service-Oriented Layering** (API → Service → Storage)
-✅ **DuckDB embedded** (single-file, no server to deploy)
+✅ **PostgreSQL** (concurrent writers, ACID transactions, production-ready)
 ✅ **Rule-based scoring** (deterministic, auditable, free)
 ✅ **LLM for language tasks only** (Haiku for classification, Sonnet for narrative)
 ✅ **Mock-first development** (100% testability before real API integration)
@@ -34,14 +34,14 @@ Build a **sales intelligence backend** that identifies businesses needing cybers
 
 ### M0: Scaffold + Fixtures
 - FastAPI app with Logfire
-- DuckDB schema (staging_records, accounts, account_top_records, trace_logs)
+- PostgreSQL schema (staging_records, accounts, account_top_records, trace_logs)
 - 5,000-record test fixture from real data
 - pytest setup (90%+ coverage target)
 
 ### M1: Data Layer
-- DuckDB connection pooling
-- Domain models (Account, StagingRecord)
-- Repository pattern for data access (now refactored to storage services)
+- PostgreSQL connection pooling (SQLAlchemy)
+- Domain models (Account, StagingRecord via SQLModel ORM)
+- Storage service abstractions via Protocol interfaces
 
 ### M2: Pipeline Service ✅ (COMPLETE)
 - Stream zstd-compressed JSONL
@@ -103,17 +103,18 @@ Build a **sales intelligence backend** that identifies businesses needing cybers
 
 ❌ **UI:** Web dashboard for lead scoring, filtering, export
 ❌ **Hosting:** Containerization, CI/CD, staging/prod infrastructure
-❌ **Concurrency:** Postgres + app-level locking (DuckDB single-writer limitation)
 ❌ **Multi-Snapshot:** Track deltas between scan dates (signal of change)
 ❌ **CRM Integration:** Salesforce, HubSpot sync
 ❌ **Auth:** API keys, role-based access control
 ❌ **Performance Tuning:** Full-file streaming, incremental indexing
+❌ **Horizontal Scaling:** Read replicas, connection pooling (pgBouncer)
 
 ## Technical Constraints
 
-### DuckDB Limitations
-- Single writer per process (CLI + API can't run concurrently)
-- Workaround: Queue-based pipeline (marked roadmap item)
+### PostgreSQL
+- Connection pooling via SQLAlchemy (thread-safe, efficient)
+- ACID transactions ensure data consistency
+- Concurrent writers supported (no single-writer limitation)
 
 ### LLM Cost Control
 - Top-N selection (only enrich top 50 accounts/day, not 10.6M)

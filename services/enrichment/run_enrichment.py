@@ -36,7 +36,7 @@ def enrich_accounts(
     once an ANTHROPIC_API_KEY is available.
     """
     typer.echo(f"Starting enrichment")
-    typer.echo(f"   Database: {settings.db_type}")
+    typer.echo(f"   Database: PostgreSQL ({settings.postgres_database})")
     typer.echo(f"   Top N: {top_n}")
     typer.echo(f"   Score version: {score_version}")
 

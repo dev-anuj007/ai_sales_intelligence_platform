@@ -67,12 +67,15 @@ class PipelineService:
 - Extensible backend support
 
 ```python
-# services/storage/staging_storage.py
+# services/storage/postgres_staging_storage.py
 class StagingStorageService:
     def bulk_insert(self, records: list[dict]) -> int:
-        # Pure data access
-        appender = duckdb.Appender(self.connection, "staging_records")
-        # ... insert logic
+        # Pure data access via SQLAlchemy ORM
+        session = self._get_session()
+        for record in records:
+            staging_record = StagingRecordSQL(**record)
+            session.add(staging_record)
+        session.commit()
 ```
 
 ## SOLID Principles
@@ -118,16 +121,18 @@ class StagingStorageService:
 Files:
 - `abstractions.py` - Protocol interfaces
 - `enums.py` - StorageType, TableType
-- `*_storage.py` - DuckDB implementations
-- `duckdb_connection.py` - Connection pooling
-- `models.py` - Domain models (Account, StagingRecord)
+- `postgres_*.py` - PostgreSQL implementations (SQLModel ORM)
+- `postgres_connection.py` - Connection pooling (SQLAlchemy)
+- `sqlmodel_models.py` - SQLModel ORM models
+- `models.py` - Pydantic domain models (Account, StagingRecord)
 - `migrate.py` - Schema application
+- `factory.py` - Backend factory (PostgreSQL-only)
 
 Implementations:
-- `AccountStorageService` - accounts table CRUD
-- `StagingStorageService` - staging_records bulk insert
-- `TraceStorageService` - trace_logs append + query
-- `NamesStorageServiceImpl` - company name caching
+- `PostgresAccountStorageService` - accounts table CRUD
+- `PostgresStagingStorageService` - staging_records bulk insert
+- `PostgresTraceStorageService` - trace_logs append + query
+- `PostgresNamesStorageServiceImpl` - company name caching
 
 ### 2. Pipeline Service (services/pipeline/)
 **Data ingestion and normalization**
@@ -187,19 +192,25 @@ Future tasks (not implemented yet):
 - Risk narrative generation (Sonnet)
 - Outreach draft generation (Sonnet)
 
-## Storage Backend Extensibility
+## Storage Backend
 
-Current: DuckDB (embedded, single-file, single-writer)
+**Current:** PostgreSQL 12+ (SQLAlchemy ORM via SQLModel)
 
-Future backends via `StorageType` enum:
+**Features:**
+- Concurrent writers (unlike DuckDB single-writer limitation)
+- Full ACID transactions
+- Connection pooling (thread-safe)
+- Type-safe ORM models (SQLModel)
+
+**Future backends** via `StorageType` enum:
 ```python
 class StorageType(Enum):
-    DATABASE = "database"   # PostgreSQL, DuckDB
-    CACHE = "cache"         # Redis, Memcached
-    FILE = "file"           # S3, local filesystem
+    DATABASE = "database"   # PostgreSQL (current)
+    CACHE = "cache"         # Redis (future)
+    FILE = "file"           # S3 (future)
 ```
 
-Adding new backend:
+**Adding new backend:**
 1. Create `RedisStorageService` implementing Protocol
 2. Inject into service: `ScoringService(redis_storage)`
 3. Zero changes to api.py or service.py
@@ -257,7 +268,6 @@ Shared dependencies:
 - ❌ Multi-snapshot delta analysis (roadmap)
 - ❌ CRM integration (roadmap)
 - ❌ Authentication/authorization (roadmap)
-- ❌ Concurrent-writer support (DuckDB limitation)
 
 ## Next Steps
 

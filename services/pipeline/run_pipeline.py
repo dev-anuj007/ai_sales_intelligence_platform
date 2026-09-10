@@ -26,11 +26,6 @@ def pipeline(
         "--input",
         help="Path to zstd-compressed JSONL file (e.g., data/fixtures/shodan_sample.jsonl)",
     ),
-    db: str = typer.Option(
-        str(settings.duckdb_path),
-        "--db",
-        help="Path to DuckDB file",
-    ),
     limit: int | None = typer.Option(
         None,
         "--limit",
@@ -59,7 +54,7 @@ def pipeline(
 
     typer.echo(f"Starting pipeline")
     typer.echo(f"   Input: {input_path}")
-    typer.echo(f"   Database: {settings.db_type}")
+    typer.echo(f"   Database: PostgreSQL ({settings.postgres_database})")
     if limit:
         typer.echo(f"   Limit: {limit} records")
 

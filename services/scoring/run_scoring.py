@@ -31,7 +31,7 @@ def score_accounts(
     Scores are stored with signal_tags (audit trail) and score_explanation (breakdown).
     """
     typer.echo(f"Starting scoring")
-    typer.echo(f"   Database: {settings.db_type}")
+    typer.echo(f"   Database: PostgreSQL ({settings.postgres_database})")
     typer.echo(f"   Score version: {score_version}")
 
     try:

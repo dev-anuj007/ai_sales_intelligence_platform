@@ -1,28 +1,30 @@
 # Roadmap: Future Phases
 
-## Phase 2: Production Deployment
+## Phase 2: Production Deployment ✅ (Partially Complete)
 
 ### Infrastructure
-- Docker containerization (services + DuckDB)
+- Docker containerization (services + PostgreSQL)
 - CI/CD pipeline (GitHub Actions)
 - Staging/prod environments
 - Monitoring dashboard (Logfire integration)
 
-### Database Migration
-- Postgres (concurrent writers)
-- Connection pooling (PgBouncer)
+### Database
+✅ **PostgreSQL** (concurrent writers, ACID transactions)
+- Connection pooling via SQLAlchemy (thread-safe)
 - Query optimization (indices, materialized views)
+- Backup/restore strategies
 
-## Phase 3: Concurrency & Multi-Writer
+## Phase 3: Concurrency & Multi-Writer ✅ (Built In)
 
-**Challenge:** DuckDB single-writer limitation
+**Current:** PostgreSQL supports concurrent writers natively
+- No single-writer limitation
+- ACID transactions ensure consistency
+- Connection pooling for efficient resource usage
 
-**Solution:** Application-level queue + workers
-- Redis queue for jobs (ingest, score, enrich)
-- Distributed lock (Redis) for DuckDB writes
+**Future:** Application-level optimizations
+- Redis queue for long-running tasks
 - Async task workers (Celery or similar)
-
-Alternative: Postgres instead of DuckDB (full concurrent support)
+- Rate limiting per writer
 
 ## Phase 4: Multi-Snapshot Signals
 

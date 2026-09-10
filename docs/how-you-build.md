@@ -30,7 +30,7 @@ storage/         [Data access - CRUD + queries]
 **Why:**
 - api.py NEVER directly accesses storage (enforced in code review)
 - service.py is 100% testable with mocked storage (zero DB required)
-- Easy to swap storage backend (DuckDB → Postgres → Redis)
+- Easy to swap storage backend (Postgres → Redis cache, S3 file storage)
 - Clear separation of concerns (HTTP, logic, data)
 
 **Example violation (DON'T):**
@@ -66,7 +66,7 @@ class ScoringService:
 ```
 
 **Why:**
-- Loose coupling: service doesn't care if storage is DuckDB, Postgres, or Redis
+- Loose coupling: service doesn't care if storage is Postgres or Redis (Protocol abstraction)
 - Testing: inject MockStorageService (100% code path coverage without DB)
 - Future backends: add PostgresStorageService without changing service.py
 - SOLID: Dependency Inversion Principle
@@ -151,29 +151,35 @@ def test_ingest_normalizes():
 
 **Real storage tests** (integration only):
 - Separate from unit tests
-- Run against tmp DuckDB (fast, ephemeral)
+- Run against ephemeral PostgreSQL (via docker or local instance)
 - Much smaller number (< 20)
 
 **Decision:** 90% mocks, 10% integration = speed + confidence
 
-### Decision 7: DuckDB (Embedded, Single-File)
+### Decision 7: PostgreSQL (Relational, Production-Ready)
 
-**Choice:** DuckDB for MVP, not Postgres/MySQL
+**Choice:** PostgreSQL for all deployments (development, staging, production)
 
 **Why:**
-- Single file (db/sales_intel.duckdb) - easy to backup, version control
-- No server to run (MVP constraint: "no deployment")
-- Competitive performance (analytical queries are fast)
-- Streaming COPY/INSERT (good for bulk data)
-- Type safety (strong types, constraints)
+- Concurrent writers (no single-writer limitation)
+- Full ACID transactions (data integrity)
+- SQLAlchemy ORM (type-safe, Pythonic)
+- SQLModel integration (Pydantic validation + SQL)
+- Connection pooling (efficient resource usage)
+- Standard DevOps tooling (backup, replication, monitoring)
+- Scales horizontally (read replicas, sharding)
 
-**Limitation:** Single writer per process
+**Setup:**
+```bash
+# Local development
+uv run python scripts/setup_postgres.py
 
-**Solution:** For concurrency, queue-based pipeline (roadmap)
+# Docker (production)
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=admin postgres:15
+```
 
-**Migration path:** When scaling, switch to Postgres (Protocol makes it easy)
-
-**Decision:** DuckDB for MVP, Postgres later
+**Migration from DuckDB:**
+All code switched from DuckDB implementations to PostgreSQL via `factory.py`. Zero API/service changes (Protocol abstraction hides backend).
 
 ### Decision 8: Anthropic SDK (not LangChain)
 
@@ -287,11 +293,12 @@ def get_connection():
     global _connection  # Global mutable state = bad
 
 # ✅ RIGHT
-class DuckDBConnectionPool:
+class PostgresConnectionPool:
     def __init__(self):
-        self._conn = None
-    def get_connection(self):
-        # Instance state, explicit dependency injection
+        self._engine = None
+        self._session_local = None
+    def get_connection(self) -> Session:
+        # Instance state, explicit dependency injection via factory
 ```
 
 ### Constraint 2: No Hardcoded Constants
@@ -387,14 +394,15 @@ class FeatureExtractorFactory:
 **Why:** Switch backends without changing clients
 
 ```python
-# Current: DuckDB
-storage = DuckDBStorageService(connection)
+# Current: PostgreSQL via factory
+from services.storage import AccountStorageService  # factory selects backend
 
-# Future: Postgres
-storage = PostgresStorageService(connection)
+# Future: Redis cache layer
+from services.storage.redis_storage import RedisAccountStorageService
 
-# Both implement Protocol StorageService
-# Client code doesn't change
+# All implement Protocol AccountStorageService
+# Service code doesn't change
+service = ScoringService(storage)  # Works with any backend
 ```
 
 ### Pattern 3: Template Method (Pipeline)

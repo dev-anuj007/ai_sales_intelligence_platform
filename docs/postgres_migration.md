@@ -1,24 +1,17 @@
-# PostgreSQL Migration Guide
+# PostgreSQL Setup Guide
 
-This document explains how to migrate from DuckDB to PostgreSQL in the AI Sales Intelligence Platform.
+PostgreSQL is the sole database backend for the AI Sales Intelligence Platform. This guide explains how to set up PostgreSQL for local development and production.
 
 ## Overview
 
-The platform now supports both **DuckDB** (default, single-file, single-writer) and **PostgreSQL** (production-ready, concurrent writes, scalable) as storage backends.
-
-### Why PostgreSQL?
+**Why PostgreSQL?**
 
 - ✅ **Concurrent writes**: Multiple services can write simultaneously
 - ✅ **Better scaling**: Handles 100+ requests/second
 - ✅ **Production-ready**: ACID compliance, transactions, rollback
 - ✅ **Monitoring**: Native observability via pgAdmin, logs
 - ✅ **Backup/Restore**: Industry-standard tools (pg_dump, WAL archiving)
-
-### Why Keep DuckDB?
-
-- ✅ **Zero setup**: Single file, no server needed
-- ✅ **Fast**: Optimized for analytics queries
-- ✅ **Development**: Perfect for local iteration
+- ✅ **Type-safe ORM**: SQLAlchemy + SQLModel for Pythonic data access
 
 ## Quick Start: PostgreSQL Setup
 
@@ -40,343 +33,355 @@ sudo systemctl start postgresql
 - Download from https://www.postgresql.org/download/windows/
 - Run installer, note the password you set for `postgres` user
 
-**Docker:**
+**Docker (Recommended for Development):**
 ```bash
-docker run --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:15
+docker run --name sales-intel-postgres \
+  -e POSTGRES_PASSWORD=admin \
+  -p 5432:5432 \
+  -d postgres:15
 ```
 
 ### 2. Configure Environment
 
 Create `.env` in project root:
 ```bash
-# Database Configuration
-DB_TYPE=postgres                    # Change from 'duckdb' to 'postgres'
+# PostgreSQL Configuration
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DATABASE=sales_intel
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres          # Use secure password in production!
+POSTGRES_PASSWORD=admin          # Use secure password in production!
 ```
 
-### 3. Install Dependencies
+### 3. Initialize Database
 
-```bash
-uv sync                             # Install sqlmodel, sqlalchemy, psycopg2
-```
-
-### 4. Create Database and Tables
-
+Run the setup script:
 ```bash
 uv run python scripts/setup_postgres.py
 ```
 
-Output should show:
-```
-✓ Database 'sales_intel' created
-✓ Connection pool initialized
-✓ Database connection successful
-✓ All tables created successfully
-✅ Setup complete!
-```
+This creates:
+- Database: `sales_intel`
+- Tables: `staging_records`, `accounts`, `account_top_records`, `trace_logs`
+- Indices: For efficient queries
 
-### 5. Verify Connection
+### 4. Verify Connection
 
 ```bash
-uv run python -c "
-from services.storage import init_pool, get_pool
-init_pool()
-print('✅ PostgreSQL connected successfully!')
-"
+# Test connection
+python -c "from services.storage import init_pool; pool = init_pool(); conn = pool.get_connection(); print('Connected!'); conn.close()"
+
+# Or use psql CLI
+psql -h localhost -U postgres -d sales_intel -c "SELECT 1;"
 ```
 
-## Migration: DuckDB → PostgreSQL
+## Database Schema
 
-### Step 1: Export Data from DuckDB
+The platform uses SQLModel ORM for type-safe data access. Tables are created automatically via SQLAlchemy.
+
+### Tables
+
+#### staging_records
+Raw records from Shodan ingestion:
+```sql
+CREATE TABLE staging_records (
+    record_id BIGINT PRIMARY KEY,
+    root_domain VARCHAR(255),
+    ip VARCHAR(15),
+    port INT,
+    ts TIMESTAMP,
+    tags TEXT[],
+    vuln_count INT,
+    max_cvss FLOAT,
+    max_epss FLOAT,
+    ... (30+ fields)
+);
+
+CREATE INDEX idx_staging_root_domain ON staging_records(root_domain);
+CREATE INDEX idx_staging_timestamp ON staging_records(ts);
+```
+
+#### accounts
+Aggregated per-domain records:
+```sql
+CREATE TABLE accounts (
+    root_domain VARCHAR(255) PRIMARY KEY,
+    record_count INT,
+    asset_count INT,
+    distinct_ips INT,
+    distinct_ports INT,
+    port_list JSONB,
+    countries JSONB,
+    vuln_count_total INT,
+    vuln_count_critical INT,
+    max_cvss FLOAT,
+    max_epss FLOAT,
+    exposed_database_count INT,
+    legacy_protocol_count INT,
+    weak_tls_count INT,
+    self_signed_cert_count INT,
+    eol_product_count INT,
+    iot_ot_device_count INT,
+    honeypot_flagged BOOLEAN,
+    excluded_as_honeypot BOOLEAN,
+    risk_score FLOAT,
+    score_version VARCHAR(10),
+    signal_tags JSONB,
+    score_explanation JSONB,
+    scored_at TIMESTAMP,
+    narrative TEXT,
+    outreach_draft TEXT,
+    enriched_at TIMESTAMP,
+    ... (more fields)
+);
+
+CREATE INDEX idx_accounts_risk_score ON accounts(risk_score DESC);
+CREATE INDEX idx_accounts_excluded ON accounts(excluded_as_honeypot);
+```
+
+#### account_top_records
+Top 20 records per account for LLM grounding:
+```sql
+CREATE TABLE account_top_records (
+    root_domain VARCHAR(255),
+    record_id BIGINT,
+    rank INT,
+    PRIMARY KEY (root_domain, record_id)
+);
+
+CREATE INDEX idx_account_top_rank ON account_top_records(root_domain, rank);
+```
+
+#### trace_logs
+LLM call tracing:
+```sql
+CREATE TABLE trace_logs (
+    trace_id UUID PRIMARY KEY,
+    timestamp TIMESTAMP,
+    task VARCHAR(50),
+    root_domain VARCHAR(255),
+    model VARCHAR(50),
+    prompt_name VARCHAR(100),
+    prompt_version VARCHAR(10),
+    input_tokens INT,
+    output_tokens INT,
+    cost_usd FLOAT,
+    latency_ms INT,
+    decision TEXT,
+    success BOOLEAN,
+    error TEXT,
+    request_hash VARCHAR(64),
+    llm_client_type VARCHAR(20)
+);
+
+CREATE INDEX idx_trace_timestamp ON trace_logs(timestamp DESC);
+CREATE INDEX idx_trace_task ON trace_logs(task);
+```
+
+## Development Workflow
+
+### Local Development (Docker Recommended)
 
 ```bash
-# Create backup
-uv run python -c "
-import duckdb
-from pathlib import Path
+# 1. Start PostgreSQL in Docker
+docker run --name sales-intel-postgres \
+  -e POSTGRES_PASSWORD=admin \
+  -p 5432:5432 \
+  -d postgres:15
 
-# Connect to DuckDB
-conn = duckdb.connect('services/storage/db/sales_intel.duckdb')
+# 2. Initialize database
+uv run python scripts/setup_postgres.py
 
-# Export tables
-for table in ['staging_records', 'accounts', 'account_top_records', 'trace_logs']:
-    conn.execute(f\"COPY {table} TO 'db_backup/{table}.parquet' (FORMAT PARQUET)\")
-    print(f'✓ Exported {table}')
-"
+# 3. Run pipeline
+uv run python -m services.pipeline.run_pipeline \
+  --input services/pipeline/data/fixtures/shodan_sample.jsonl \
+  --limit 5000
+
+# 4. Score and enrich
+uv run python -m services.scoring.run_scoring
+uv run python -m services.enrichment.run_enrichment --top-n 50
+
+# 5. Start API server
+uv run uvicorn main:app --reload
+
+# 6. Query in another terminal
+curl http://localhost:8001/accounts?limit=10
 ```
 
-### Step 2: Setup PostgreSQL
+### Query Inspection
 
-Follow "Quick Start" above (steps 1-4).
+Use `psql` to inspect data:
+```bash
+# Connect to database
+psql -h localhost -U postgres -d sales_intel
 
-### Step 3: Import Data to PostgreSQL
+# List tables
+\dt
+
+# Query accounts
+SELECT root_domain, risk_score, signal_tags FROM accounts LIMIT 5;
+
+# Query by score range
+SELECT root_domain, risk_score FROM accounts 
+WHERE risk_score > 80 
+ORDER BY risk_score DESC 
+LIMIT 10;
+
+# Query traces
+SELECT task, model, cost_usd, latency_ms FROM trace_logs ORDER BY timestamp DESC LIMIT 5;
+
+# Exit
+\q
+```
+
+### Backup & Restore
 
 ```bash
-# Set environment to use PostgreSQL
-export DB_TYPE=postgres
+# Backup database
+pg_dump -h localhost -U postgres -d sales_intel > backup.sql
 
-uv run python -c "
-import pandas as pd
-from pathlib import Path
-from services.storage import init_pool, get_pool
-from services.storage.sqlmodel_models import (
-    StagingRecordSQL, AccountSQL, AccountTopRecordSQL, TraceRecordSQL
-)
-from sqlmodel import Session
+# Restore from backup
+psql -h localhost -U postgres -d sales_intel < backup.sql
 
-init_pool()
-session: Session = get_pool().get_connection()
-
-# Import staging_records
-df = pd.read_parquet('db_backup/staging_records.parquet')
-for _, row in df.iterrows():
-    record = StagingRecordSQL(**row.to_dict())
-    session.add(record)
-session.commit()
-print(f'✓ Imported {len(df)} staging records')
-
-# ... repeat for other tables
-"
+# Docker-specific backup
+docker exec sales-intel-postgres pg_dump -U postgres sales_intel > backup.sql
 ```
 
-### Step 4: Update Config & Restart
+## Production Deployment
 
-In `.env`, set:
-```bash
-DB_TYPE=postgres
-```
-
-Restart the API server:
-```bash
-uv run uvicorn main:app --reload --port 8001
-```
-
-## Storage Service Factory Pattern
-
-The platform uses **factory pattern** to automatically select the correct storage backend:
-
-```python
-# services/storage/factory.py
-if settings.db_type == "postgres":
-    AccountStorageService = PostgresAccountStorageService
-    StagingStorageService = PostgresStagingStorageService
-    TraceStorageService = PostgresTraceStorageService
-else:
-    AccountStorageService = DuckDBAccountStorageService  # Fallback
-    # ... etc
-```
-
-**No changes needed to API or service layers** — they work with both backends transparently.
-
-## Comparison: DuckDB vs PostgreSQL
-
-| Feature | DuckDB | PostgreSQL |
-|---------|--------|------------|
-| Concurrent writes | ❌ Single writer | ✅ Multiple writers |
-| Transactions | ⚠️ Limited | ✅ Full ACID |
-| Query performance | ✅ Fast (OLAP) | ✅ Fast (OLTP) |
-| Setup complexity | ✅ None | ⚠️ Medium (requires server) |
-| Scalability | ❌ Single machine | ✅ Sharding, replication |
-| Backup/Restore | ✅ File copy | ✅ pg_dump, WAL archiving |
-| Monitoring | ⚠️ Logs only | ✅ pgAdmin, native metrics |
-| Development | ✅ Perfect | ⚠️ More setup |
-| Production | ❌ No | ✅ Recommended |
-
-## Running Tests with PostgreSQL
-
-Tests now work with PostgreSQL:
+### 1. RDS (AWS Recommended)
 
 ```bash
-# Unit tests (mocked storage)
-uv run pytest services/*/tests/ -v
-
-# Integration tests (real PostgreSQL)
-uv run pytest services/*/tests/ -m integration -v
+# Create RDS instance
+aws rds create-db-instance \
+  --db-instance-identifier sales-intel-prod \
+  --db-instance-class db.t3.medium \
+  --engine postgres \
+  --master-username postgres \
+  --master-user-password $(openssl rand -base64 32) \
+  --allocated-storage 100
 ```
 
-To use DuckDB for tests instead:
+Update `.env` with RDS endpoint:
 ```bash
-export DB_TYPE=duckdb
-uv run pytest services/*/tests/ -v
-```
-
-## API Differences
-
-### DuckDB (Manual Query Handling)
-```python
-# Old DuckDB-only code
-def get(self, root_domain: str) -> Account | None:
-    row = self._fetch_one(
-        "SELECT * FROM accounts WHERE root_domain = ?",
-        {"root_domain": root_domain}
-    )
-    return Account(**row) if row else None
-```
-
-### PostgreSQL (SQLModel ORM)
-```python
-# New SQLModel code (works with both backends)
-def get(self, root_domain: str) -> Account | None:
-    session = self._get_session()
-    account_sql = session.query(AccountSQL).filter(
-        AccountSQL.root_domain == root_domain
-    ).first()
-    return self._to_pydantic(account_sql) if account_sql else None
-```
-
-Benefits:
-- **Type-safe**: No string concatenation, IDE autocomplete
-- **Parameterized**: Automatic SQL injection prevention
-- **Testable**: Easy to mock with SQLAlchemy fixtures
-
-## Performance Tuning
-
-### PostgreSQL Configuration
-
-For development (`.env`):
-```
-POSTGRES_HOST=localhost
+POSTGRES_HOST=sales-intel-prod.cxxxxxx.us-east-1.rds.amazonaws.com
 POSTGRES_PORT=5432
 POSTGRES_DATABASE=sales_intel
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=<generated-password>
 ```
 
-For production, consider:
-```bash
-# Connection pooling (recommended with PgBouncer or pgpool)
-# See https://wiki.postgresql.org/wiki/Number_Of_Database_Connections
+### 2. Connection Pooling (PgBouncer)
 
-# Enable WAL archiving for backups
-# See https://www.postgresql.org/docs/current/continuous-archiving.html
-
-# Configure replication for high availability
-# See https://www.postgresql.org/docs/current/warm-standby.html
-```
-
-### Indexes (Auto-created by SQLModel)
-
-Primary keys are automatically indexed:
-- `accounts.root_domain` (string PK)
-- `trace_logs.trace_id` (string PK)
-- `account_top_records (root_domain, record_id)` (composite PK)
-
-Add custom indexes for frequent queries:
-```python
-# In sqlmodel_models.py
-class AccountSQL(SQLModel, table=True):
-    root_domain: str = Field(primary_key=True, index=True)
-    risk_score: Optional[float] = Field(None, index=True)  # ← Add this
-    excluded_as_honeypot: bool = Field(default=False, index=True)
-```
-
-## Monitoring & Debugging
-
-### Check PostgreSQL Status
+For production, use PgBouncer for connection pooling:
 
 ```bash
-# Via psql
-psql -h localhost -U postgres -d sales_intel
+# Install pgbouncer
+brew install pgbouncer  # macOS
+sudo apt-get install pgbouncer  # Ubuntu
 
-# Inside psql
-\dt                              # List tables
-SELECT COUNT(*) FROM accounts;   # Count records
-\q                               # Exit
+# Configure pgbouncer.ini
+[databases]
+sales_intel = host=localhost port=5432 dbname=sales_intel
+
+[pgbouncer]
+pool_mode = transaction
+max_client_conn = 1000
+default_pool_size = 25
+
+# Start pgbouncer
+pgbouncer -d /etc/pgbouncer/pgbouncer.ini
 ```
 
-### View Connection Pool Stats
-
-```python
-from services.storage import get_pool
-
-pool = get_pool()
-print(f"Pool size: {pool.pool_size}")
-print(f"Max overflow: {pool.max_overflow}")
-print(f"Engine: {pool.engine}")
-```
-
-### Enable SQL Query Logging
-
-In `.env`:
+Update app to use pgbouncer port (6432):
 ```bash
-LOG_LEVEL=DEBUG
+POSTGRES_HOST=localhost
+POSTGRES_PORT=6432
 ```
 
-This logs all SQL queries to logfire.
+### 3. Monitoring
+
+**pgAdmin (Web UI):**
+```bash
+docker run --name pgadmin -p 5050:80 \
+  -e PGADMIN_DEFAULT_EMAIL=admin@example.com \
+  -e PGADMIN_DEFAULT_PASSWORD=admin \
+  -d dpage/pgadmin4
+```
+
+Visit http://localhost:5050, login, add server with RDS endpoint.
+
+**Query Logs:**
+```bash
+# Enable query logging
+psql -h localhost -U postgres -d sales_intel -c "ALTER SYSTEM SET log_statement = 'all';"
+psql -h localhost -U postgres -d sales_intel -c "SELECT pg_reload_conf();"
+
+# View logs
+tail -f /var/log/postgresql/postgresql.log  # Linux
+```
 
 ## Troubleshooting
 
-### "Connection refused" Error
-
+### Connection refused
 ```bash
 # Check if PostgreSQL is running
 ps aux | grep postgres
 
-# Try connecting manually
-psql -h localhost -U postgres -d sales_intel
+# Check port
+lsof -i :5432
 
-# If not running, start it
-# macOS: brew services start postgresql@15
-# Linux: sudo systemctl start postgresql
-# Docker: docker start postgres
+# Restart service
+brew services restart postgresql@15  # macOS
+sudo systemctl restart postgresql    # Linux
+docker restart sales-intel-postgres  # Docker
 ```
 
-### "Database does not exist" Error
+### Out of connections
+```sql
+-- Check current connections
+SELECT datname, count(*) FROM pg_stat_activity GROUP BY datname;
 
-```bash
-# Create it manually
-psql -h localhost -U postgres -c "CREATE DATABASE sales_intel;"
+-- Increase max_connections in postgresql.conf
+max_connections = 200
 
-# Or run setup script
-uv run python scripts/setup_postgres.py
+-- Reload config
+SELECT pg_reload_conf();
 ```
 
-### "Permission denied" Error
+### Slow queries
+```sql
+-- Enable query timing
+EXPLAIN ANALYZE SELECT ... ;
 
-Check PostgreSQL user credentials in `.env`:
-```bash
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=<your-password-here>
+-- Create indices for common queries
+CREATE INDEX idx_accounts_risk_score ON accounts(risk_score DESC);
+CREATE INDEX idx_staging_root_domain ON staging_records(root_domain);
 ```
 
-### Connection Pool Exhausted
+## Migration from DuckDB (Legacy)
 
-If you see "QueuePool limit of size 10 overflow 20 reached", increase pool size:
+This section is for reference only. DuckDB is no longer supported.
+
+**If you have existing DuckDB data:**
+
 ```python
-# In config.py or environment
-pool = PostgresConnectionPool(pool_size=20, max_overflow=40)
+import duckdb
+import psycopg2
+
+# Export from DuckDB
+duckdb_conn = duckdb.connect('services/storage/db/sales_intel.duckdb')
+df = duckdb_conn.execute("SELECT * FROM accounts").fetchdf()
+
+# Import to PostgreSQL
+from services.storage import AccountStorageService
+storage = AccountStorageService()
+for _, row in df.iterrows():
+    storage.create(row.to_dict())
 ```
 
 ## Next Steps
 
-1. **Enable SSL/TLS**: In production, use SSL for PostgreSQL connections
-   ```python
-   database_url = f"postgresql+psycopg2://...?sslmode=require"
-   ```
-
-2. **Setup backup strategy**: Use `pg_dump` or WAL archiving
-   ```bash
-   pg_dump -h localhost -U postgres sales_intel > backup.sql
-   ```
-
-3. **Configure monitoring**: Use pgAdmin or Grafana to monitor performance
-   ```bash
-   # Docker pgAdmin
-   docker run -d -p 5050:80 dpage/pgadmin4
-   ```
-
-4. **Scale with replication**: Setup read replicas for high-traffic deployments
-   ```bash
-   # See: https://www.postgresql.org/docs/current/warm-standby.html
-   ```
-
-## References
-
-- SQLModel docs: https://sqlmodel.tiangolo.com/
-- SQLAlchemy ORM: https://docs.sqlalchemy.org/en/20/orm/
-- PostgreSQL docs: https://www.postgresql.org/docs/
-- Connection pooling: https://www.postgresql.org/docs/current/sql-createuser.html
+- [Architecture Guide](architecture.md) - System design and layering
+- [How You Build](how-you-build.md) - Design decisions and rationale
+- [CLAUDE.md](../CLAUDE.md) - Development workflow and coding standards
