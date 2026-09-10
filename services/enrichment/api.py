@@ -17,7 +17,7 @@ def get_enrichment_service() -> EnrichmentService:
 
 
 @router.post("/run")
-def run_enrichment(
+async def run_enrichment(
     top_n: int = 50,
     score_version: str = "v1",
     service: EnrichmentService = Depends(get_enrichment_service),

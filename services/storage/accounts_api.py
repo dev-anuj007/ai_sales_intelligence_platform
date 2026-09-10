@@ -14,7 +14,7 @@ def get_account_storage() -> AccountStorageService:
 
 
 @router.get("")
-def list_accounts(
+async def list_accounts(
     limit: int = Query(100, ge=1, le=10000),
     offset: int = Query(0, ge=0),
     sort: str = Query("root_domain", pattern="^(root_domain|risk_score_desc|risk_score_asc)$"),
@@ -48,7 +48,7 @@ def list_accounts(
 
 
 @router.get("/{root_domain}")
-def get_account(
+async def get_account(
     root_domain: str,
     storage: AccountStorageService = Depends(get_account_storage),
 ) -> dict[str, Any]:

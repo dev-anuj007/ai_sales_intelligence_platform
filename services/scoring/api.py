@@ -17,7 +17,7 @@ def get_scoring_service() -> ScoringService:
 
 
 @router.post("/run")
-def run_scoring(
+async def run_scoring(
     score_version: str = "v1",
     service: ScoringService = Depends(get_scoring_service),
 ) -> dict[str, Any]:

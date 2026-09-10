@@ -19,7 +19,7 @@ def get_ingest_service() -> IngestService:
 
 
 @router.post("/ingest")
-def ingest_records(
+async def ingest_records(
     input_path: str,
     batch_size: int = 5000,
     limit: int | None = None,
