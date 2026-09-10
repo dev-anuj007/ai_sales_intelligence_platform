@@ -2,6 +2,40 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Workflow (IMPORTANT)
+
+**Always follow this workflow for any code changes:**
+
+1. **Create a feature branch from latest main:**
+   ```bash
+   git fetch origin main
+   git checkout main
+   git pull origin main
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make your changes and commit:**
+   ```bash
+   git add services/...
+   git commit -m "feat: description of changes"
+   ```
+
+3. **Push to remote and create PR:**
+   ```bash
+   git push -u origin feature/your-feature-name
+   # Then create PR on GitHub for review
+   ```
+
+4. **Merge only after review approval**
+
+**Rules:**
+- Never commit directly to `main`
+- Always create a PR for code review before merging
+- Run `uv run mypy services/` + `uv run pytest` before pushing
+- PRs require approval before merge
+
+---
+
 ## Quick Start: Common Commands
 
 ### Setup & Dependencies
@@ -28,23 +62,29 @@ uv run pytest services/*/tests/ --cov=services/ --cov-report=html  # With covera
 uv run mypy services/           # Strict mode (required before commit)
 ```
 
-### Development: Ingest & Process Data
+### Development: Full Data Pipeline
+
 ```bash
-# 1. Ingest sample data
+# 1. Ensure PostgreSQL is running and DB_TYPE=postgres
+export DB_TYPE=postgres
+
+# 2. Ingest + aggregate sample data (5000 records)
 uv run python -m services.pipeline.run_pipeline \
   --input services/pipeline/data/fixtures/shodan_sample.jsonl \
-  --db services/storage/db/sales_intel.duckdb \
   --limit 5000
 
-# 2. Score accounts
-uv run python -m services.scoring.score_accounts \
-  --db services/storage/db/sales_intel.duckdb
+# 3. Score all accounts (rule-based, deterministic)
+uv run python -m services.scoring.run_scoring
 
-# 3. Enrich top accounts (mock LLM)
-uv run python -m services.enrichment.run_enrichment \
-  --db services/storage/db/sales_intel.duckdb \
-  --top-n 50 \
-  --client mock
+# 4. Enrich top 50 accounts (LLM analysis, mock client)
+uv run python -m services.enrichment.run_enrichment --top-n 50
+
+# 5. Start API server
+uv run uvicorn main:app --reload --port 8001
+
+# 6. Query in another terminal
+curl http://localhost:8001/accounts?sort=risk_score_desc&limit=10
+curl http://localhost:8001/accounts/{root_domain}
 ```
 
 ### Running the API Server
@@ -381,9 +421,44 @@ def test_ingest_normalizes(mock_staging_storage):
 
 ---
 
+## Pre-Push Checklist
+
+Before pushing your branch, run these checks locally:
+
+```bash
+# 1. Type checking (strict mode)
+uv run mypy services/
+
+# 2. Run all tests
+uv run pytest services/*/tests/ -v
+
+# 3. Check test coverage
+uv run pytest services/*/tests/ --cov=services/ --cov-report=term-missing
+
+# 4. Verify your changes don't break the pipeline
+uv run python -m services.pipeline.run_pipeline \
+  --input services/pipeline/data/fixtures/shodan_sample.jsonl \
+  --limit 100
+
+# 5. Review git status
+git status
+git diff
+
+# 6. Verify commit messages are clear
+git log --oneline -3
+```
+
+If all pass, push and create a PR:
+```bash
+git push -u origin feature/your-feature-name
+# Create PR on GitHub for review
+```
+
+---
+
 ## Code Review Checklist
 
-Before committing, verify:
+Your PR will be reviewed against these criteria:
 
 - [ ] **SOLID:** No SRP violations (one class per file)
 - [ ] **Types:** `uv run mypy services/` passes (zero errors)
