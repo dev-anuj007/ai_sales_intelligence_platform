@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Literal still needed for log_backend and environment
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
@@ -25,10 +27,9 @@ class Settings(BaseSettings):
     postgres_password: str = "postgres"
 
     # ===== LLM Configuration =====
-    llm_client: Literal["mock", "anthropic"] = "mock"
     anthropic_api_key: str = ""
     haiku_model: str = "claude-haiku-4-5-20251001"
-    sonnet_model: str = "claude-sonnet-5-20251022"
+    sonnet_model: str = "claude-sonnet-5"
 
     # ===== Scoring Configuration =====
     score_version: str = "v1"
