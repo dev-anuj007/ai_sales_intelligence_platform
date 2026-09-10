@@ -15,8 +15,7 @@ def get_enrichment_service() -> EnrichmentService:
 
 @router.post("/run")
 async def run_enrichment(
-	top_n: int = 50,
-	score_version: str = "v1",
-	service: EnrichmentService = Depends(get_enrichment_service),
+    top_n: int = 50,
+    service: EnrichmentService = Depends(get_enrichment_service),
 ) -> dict[str, Any]:
-	return await service.enrich_top_accounts(top_n=top_n, score_version=score_version)
+    return await service.enrich_top_accounts(top_n=top_n)
