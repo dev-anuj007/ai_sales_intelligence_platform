@@ -21,4 +21,4 @@ async def run_scoring(
     score_version: str = "v1",
     service: ScoringService = Depends(get_scoring_service),
 ) -> dict[str, Any]:
-    return service.score_accounts(score_version=score_version)
+    return await service.score_accounts(score_version=score_version)

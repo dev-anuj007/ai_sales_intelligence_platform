@@ -12,7 +12,7 @@ class ScoringService:
     def __init__(self, account_storage: AccountStorageService | None = None) -> None:
         self.account_storage = account_storage or AccountStorageService()
 
-    def score_accounts(self, score_version: str = "v1") -> dict[str, Any]:
+    async def score_accounts(self, score_version: str = "v1") -> dict[str, Any]:
         logfire.info("scoring_service.start", score_version=score_version)
 
         try:

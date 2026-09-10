@@ -22,4 +22,4 @@ async def run_enrichment(
     score_version: str = "v1",
     service: EnrichmentService = Depends(get_enrichment_service),
 ) -> dict[str, Any]:
-    return service.enrich_top_accounts(top_n=top_n, score_version=score_version)
+    return await service.enrich_top_accounts(top_n=top_n, score_version=score_version)
