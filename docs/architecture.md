@@ -197,7 +197,7 @@ Future tasks (not implemented yet):
 **Current:** PostgreSQL 12+ (SQLAlchemy ORM via SQLModel)
 
 **Features:**
-- Concurrent writers (unlike DuckDB single-writer limitation)
+- Concurrent writers
 - Full ACID transactions
 - Connection pooling (thread-safe)
 - Type-safe ORM models (SQLModel)

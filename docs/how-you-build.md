@@ -178,9 +178,6 @@ uv run python scripts/setup_postgres.py
 docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=admin postgres:15
 ```
 
-**Migration from DuckDB:**
-All code switched from DuckDB implementations to PostgreSQL via `factory.py`. Zero API/service changes (Protocol abstraction hides backend).
-
 ### Decision 8: Anthropic SDK (not LangChain)
 
 **Choice:** Raw `anthropic.Anthropic()` API, not LangChain abstractions

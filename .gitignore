@@ -49,15 +49,11 @@ htmlcov/
 dmypy.json
 
 # Project-specific
-db/*.duckdb
-db/*.duckdb-*
 data/raw/*
 !data/raw/.gitkeep
 traces/*.jsonl
 !traces/.gitkeep
 .logfire/
-*.duckdb
-*.duckdb-*
 
 # OS
 .DS_Store

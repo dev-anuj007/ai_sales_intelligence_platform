@@ -359,27 +359,6 @@ CREATE INDEX idx_accounts_risk_score ON accounts(risk_score DESC);
 CREATE INDEX idx_staging_root_domain ON staging_records(root_domain);
 ```
 
-## Migration from DuckDB (Legacy)
-
-This section is for reference only. DuckDB is no longer supported.
-
-**If you have existing DuckDB data:**
-
-```python
-import duckdb
-import psycopg2
-
-# Export from DuckDB
-duckdb_conn = duckdb.connect('services/storage/db/sales_intel.duckdb')
-df = duckdb_conn.execute("SELECT * FROM accounts").fetchdf()
-
-# Import to PostgreSQL
-from services.storage import AccountStorageService
-storage = AccountStorageService()
-for _, row in df.iterrows():
-    storage.create(row.to_dict())
-```
-
 ## Next Steps
 
 - [Architecture Guide](architecture.md) - System design and layering

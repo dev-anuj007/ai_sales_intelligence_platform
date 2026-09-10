@@ -358,7 +358,7 @@ def test_ingest_normalizes(mock_staging_storage):
 
 ### Integration Tests (Rare)
 - Only for storage layer
-- Hit ephemeral tmp DuckDB
+- Hit ephemeral PostgreSQL (test database)
 - Marked with `@pytest.mark.integration`
 - Run separately: `uv run pytest -m integration`
 
