@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StagingRecord(BaseModel):
@@ -55,10 +55,7 @@ class StagingRecord(BaseModel):
     shodan_module: str | None = None
     ingested_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        """Pydantic config for ORM mode compatibility."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Account(BaseModel):
@@ -103,10 +100,7 @@ class Account(BaseModel):
     outreach_draft: str | None = None
     enriched_at: datetime | None = None
 
-    class Config:
-        """Pydantic config for ORM mode compatibility."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TraceRecord(BaseModel):
@@ -129,10 +123,7 @@ class TraceRecord(BaseModel):
     request_hash: str | None = None
     llm_client_type: str
 
-    class Config:
-        """Pydantic config for ORM mode compatibility."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AccountTopRecord(BaseModel):
@@ -142,7 +133,4 @@ class AccountTopRecord(BaseModel):
     record_id: int
     rank: int
 
-    class Config:
-        """Pydantic config for ORM mode compatibility."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

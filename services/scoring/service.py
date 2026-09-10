@@ -5,18 +5,18 @@ from typing import Any
 
 import logfire
 
-from services.storage import AccountStorageService
+from services.storage.postgres_async_account_storage import PostgresAsyncAccountStorageService
 
 
 class ScoringService:
-    def __init__(self, account_storage: AccountStorageService | None = None) -> None:
-        self.account_storage = account_storage or AccountStorageService()
+    def __init__(self, account_storage: PostgresAsyncAccountStorageService | None = None) -> None:
+        self.account_storage = account_storage or PostgresAsyncAccountStorageService()
 
     async def score_accounts(self, score_version: str = "v1") -> dict[str, Any]:
         logfire.info("scoring_service.start", score_version=score_version)
 
         try:
-            unscored = self.account_storage.list_unscored(limit=10000)
+            unscored = await self.account_storage.list_unscored(limit=10000)
             logfire.info("scoring_service.fetched", count=len(unscored))
 
             scores_applied = 0
@@ -25,7 +25,7 @@ class ScoringService:
                 signal_tags = self._extract_signals(account)
                 score_explanation = self._explain_score(account, risk_score)
 
-                self.account_storage.update_score(
+                await self.account_storage.update_score(
                     root_domain=account.root_domain,
                     risk_score=risk_score,
                     score_version=score_version,

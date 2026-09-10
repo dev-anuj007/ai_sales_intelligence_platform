@@ -26,3 +26,7 @@ _default_detector = NoiseDetector()
 
 def is_infra_noise_tags(tags: list[str] | None) -> bool:
     return _default_detector.is_noise(tags)
+
+
+def should_include_record(record: dict[str, Any]) -> bool:
+    return _default_detector.should_include(record)

@@ -5,15 +5,12 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from services.scoring.service import ScoringService
-from services.storage import get_pool
 
 router = APIRouter(prefix="/scoring", tags=["scoring"])
 
 
 def get_scoring_service() -> ScoringService:
-    pool = get_pool()
-    conn = pool.get_connection()
-    return ScoringService(conn)
+    return ScoringService()
 
 
 @router.post("/run")

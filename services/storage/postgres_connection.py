@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Generator
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, AsyncGenerator, Generator
 
 import logfire
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from config import settings
@@ -52,10 +53,30 @@ class PostgresConnectionPool:
             bind=self.engine,
         )
 
+        async_database_url = (
+            f"postgresql+asyncpg://{self.user}:{self.password}@"
+            f"{self.host}:{self.port}/{self.database}"
+        )
+        self.async_engine = create_async_engine(
+            async_database_url,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_pre_ping=True,
+            echo=False,
+        )
+
+        self.async_session_local = async_sessionmaker(
+            self.async_engine,
+            class_=AsyncSession,
+            autocommit=False,
+            autoflush=False,
+            expire_on_commit=False,
+        )
+
         # Log SQL queries in debug mode
         @event.listens_for(Engine, "before_cursor_execute")
         def receive_before_cursor_execute(
-            conn: any, cursor: any, statement: str, parameters: any, context: any, executemany: any
+            conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: Any
         ) -> None:
             if settings.log_level == "DEBUG":
                 logfire.debug("sql_execute", statement=statement)
@@ -63,6 +84,10 @@ class PostgresConnectionPool:
     def get_connection(self) -> Session:
         """Get a new database session."""
         return self.session_local()
+
+    async def get_async_connection(self) -> AsyncSession:
+        """Get a new async database session."""
+        return self.async_session_local()
 
     @contextmanager
     def context(self) -> Generator[Session, None, None]:
@@ -77,10 +102,28 @@ class PostgresConnectionPool:
         finally:
             session.close()
 
+    @asynccontextmanager
+    async def async_context(self) -> AsyncGenerator[AsyncSession, None]:
+        """Async context manager for database sessions."""
+        session = self.async_session_local()
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
     def close(self) -> None:
         """Close all connections in the pool."""
         self.engine.dispose()
         logfire.info("postgres_pool.closed")
+
+    async def close_async(self) -> None:
+        """Close all async connections in the pool."""
+        await self.async_engine.dispose()
+        logfire.info("postgres_pool.async_closed")
 
     def create_all_tables(self) -> None:
         """Create all tables from SQLModel definitions."""
@@ -147,4 +190,12 @@ def close_pool() -> None:
     global _global_pool
     if _global_pool is not None:
         _global_pool.close()
+        _global_pool = None
+
+
+async def close_pool_async() -> None:
+    """Close the global PostgreSQL connection pool (async)."""
+    global _global_pool
+    if _global_pool is not None:
+        await _global_pool.close_async()
         _global_pool = None
