@@ -18,6 +18,13 @@ from services.pipeline.feature_extract import (
     LegacyProtocolExposureExtractor,
     TLSFeaturesExtractor,
     VulnerabilityFeaturesExtractor,
+    is_iot_ot_device,
+    is_eol_product,
+    is_honeypot,
+    extract_ssl_features,
+    extract_vuln_features,
+    extract_http_features,
+    extract_all_features,
 )
 
 

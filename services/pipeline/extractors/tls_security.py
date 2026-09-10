@@ -13,7 +13,7 @@ class TLSSecurityExtractor:
 
     def extract(self, record: dict[str, Any]) -> TLSSecurityData:
         ssl = record.get("ssl")
-        if not ssl:
+        if ssl is None:
             return TLSSecurityData()
 
         is_self_signed = self._check_self_signed(record)
