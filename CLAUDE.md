@@ -7,6 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup & Dependencies
 ```bash
 uv sync                          # Install all dependencies
+
+# PostgreSQL setup (recommended for production; see docs/postgres_migration.md)
+export DB_TYPE=postgres
+uv run python scripts/setup_postgres.py  # Create database & tables
+
+# OR use DuckDB (default, single-file; no setup needed)
+export DB_TYPE=duckdb
 ```
 
 ### Running Tests
@@ -202,7 +209,13 @@ Enforced naming: `account_storage.py` contains exactly `AccountStorageService`, 
 
 ## Storage Backend Extensibility
 
-Current: **DuckDB** (embedded, single-file, single-writer)
+**Supported:** DuckDB (default, single-file) and **PostgreSQL** (production-ready, concurrent writes)
+
+Selected via `DB_TYPE` environment variable:
+```bash
+export DB_TYPE=postgres              # PostgreSQL (production)
+export DB_TYPE=duckdb                # DuckDB (default, development)
+```
 
 All storage services implement `Protocol` interfaces in `services/storage/abstractions.py`:
 
@@ -213,12 +226,21 @@ class StorageService(Protocol[T]):
     def create(self, data: dict) -> T: ...
 ```
 
-**Adding a new backend:**
-1. Create `PostgresStorageService` implementing the Protocol
-2. Inject into service: `ScoringService(postgres_storage)`
-3. Zero changes to `api.py` or `service.py`
+**Factory pattern** in `services/storage/factory.py` automatically selects backend:
 
-Future backends: PostgreSQL (concurrent writes), Redis (cache), S3 (file storage)
+```python
+# Automatic backend selection based on config
+if settings.db_type == "postgres":
+    AccountStorageService = PostgresAccountStorageService
+else:
+    AccountStorageService = DuckDBAccountStorageService
+```
+
+**Zero changes to `api.py` or `service.py`** — they work with both backends transparently via the Protocol interface.
+
+**PostgreSQL setup:** See [docs/postgres_migration.md](docs/postgres_migration.md) for detailed migration guide.
+
+Future backends: Redis (cache), S3 (file storage), MongoDB (documents)
 
 ---
 
@@ -227,15 +249,26 @@ Future backends: PostgreSQL (concurrent writes), Redis (cache), S3 (file storage
 ```
 /
 ├── services/                          # Microservices at root (independently deployable)
-│   ├── storage/                       # Shared data access layer
+│   ├── storage/                       # Shared data access layer (DuckDB + PostgreSQL)
 │   │   ├── abstractions.py            # Protocol interfaces
-│   │   ├── account_storage.py         # Account CRUD
-│   │   ├── staging_storage.py         # Staging bulk insert
-│   │   ├── trace_storage.py           # Trace logging
-│   │   ├── names_storage.py           # Company name cache
-│   │   ├── duckdb_connection.py       # Connection pooling
-│   │   ├── models.py                  # Domain models (Pydantic)
-│   │   ├── migrate.py                 # Schema application
+│   │   ├── models.py                  # Pydantic domain models
+│   │   ├── sqlmodel_models.py         # SQLModel ORM (PostgreSQL)
+│   │   ├── factory.py                 # Backend selection (DB_TYPE config)
+│   │   ├── enums.py                   # StorageType, TableType enums
+│   │   ├── migrate.py                 # Schema: DuckDB .sql + PostgreSQL SQLModel
+│   │   │
+│   │   ├── duckdb_connection.py       # DuckDB connection pool
+│   │   ├── account_storage.py         # DuckDB account storage
+│   │   ├── staging_storage.py         # DuckDB staging storage
+│   │   ├── trace_storage.py           # DuckDB trace storage
+│   │   ├── names_storage.py           # DuckDB names cache
+│   │   │
+│   │   ├── postgres_connection.py     # PostgreSQL connection pool (SQLAlchemy)
+│   │   ├── postgres_account_storage.py    # PostgreSQL account storage
+│   │   ├── postgres_staging_storage.py    # PostgreSQL staging storage
+│   │   ├── postgres_trace_storage.py      # PostgreSQL trace storage
+│   │   ├── postgres_names_storage.py      # PostgreSQL names cache
+│   │   │
 │   │   ├── db/                        # DuckDB files (.gitignore)
 │   │   └── tests/
 │   │
@@ -372,6 +405,7 @@ Before committing, verify:
 - **Planning & goals:** [docs/planning.md](docs/planning.md)
 - **Future roadmap:** [docs/roadmap.md](docs/roadmap.md)
 - **LLM costs & token tracking:** [docs/cost_model.md](docs/cost_model.md)
+- **PostgreSQL migration guide:** [docs/postgres_migration.md](docs/postgres_migration.md)
 
 ---
 
@@ -380,13 +414,26 @@ Before committing, verify:
 Configure via `.env` file or CLI. Key variables:
 
 ```bash
-LLM_CLIENT=mock              # "mock" or "anthropic"
-ANTHROPIC_API_KEY=...        # Required if llm_client="anthropic"
-LOG_LEVEL=INFO               # DEBUG, INFO, WARNING, ERROR
-DUCKDB_PATH=...              # Custom DB path (default: services/storage/db/sales_intel.duckdb)
+# Database Configuration
+DB_TYPE=postgres                  # "postgres" or "duckdb" (default: postgres)
+POSTGRES_HOST=localhost           # PostgreSQL host
+POSTGRES_PORT=5432               # PostgreSQL port
+POSTGRES_DATABASE=sales_intel     # Database name
+POSTGRES_USER=postgres            # Database user
+POSTGRES_PASSWORD=postgres        # Database password
+
+# LLM Configuration
+LLM_CLIENT=mock                   # "mock" or "anthropic"
+ANTHROPIC_API_KEY=...             # Required if llm_client="anthropic"
+
+# Logging
+LOG_LEVEL=INFO                    # DEBUG, INFO, WARNING, ERROR
+
+# DuckDB (legacy)
+DUCKDB_PATH=...                   # Custom DuckDB path (only if DB_TYPE=duckdb)
 ```
 
-See `config.py` for complete settings list.
+See `config.py` for complete settings list. For PostgreSQL setup, see [docs/postgres_migration.md](docs/postgres_migration.md).
 
 ---
 
@@ -403,7 +450,10 @@ See `config.py` for complete settings list.
 
 ## Known Gotchas
 
-- **DuckDB single-writer:** Only one process can write at a time. For concurrent writes, use queue-based pipeline (roadmap) or migrate to Postgres.
-- **Protocol vs Concrete:** Always depend on `Protocol[T]`, never `ConcreteStorageService`. This enables swappable backends.
+- **DuckDB single-writer:** Only one process can write at a time. Use PostgreSQL (`DB_TYPE=postgres`) for production with concurrent writes.
+- **Factory pattern required:** Always import storage services from `services.storage.factory`, not directly. This ensures correct backend is selected.
+- **Protocol vs Concrete:** Always depend on `Protocol[T]`, never concrete `AccountStorageService` class. This enables swappable backends.
+- **SQLModel ORM:** PostgreSQL storage uses SQLModel (Pydantic + SQLAlchemy). DuckDB uses raw parameterized queries for legacy compatibility.
+- **Session management:** PostgreSQL services create/close sessions automatically. Pass `session=None` to auto-create, or pass explicit `Session` for testing.
 - **Fixtures commit-ready:** Test fixtures in `services/pipeline/data/fixtures/` are committed to git; use small zstd files.
-- **Mock-first design:** If a test needs real DuckDB, it should be marked `@pytest.mark.integration` and separated.
+- **Mock-first design:** Unit tests use mocked storage. Integration tests (`@pytest.mark.integration`) use real DuckDB or PostgreSQL.

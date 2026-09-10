@@ -63,7 +63,9 @@ class RecordNormalizer:
     def _truncate_banner(self, data: Any) -> str | None:
         if not isinstance(data, str):
             return None
-        return data[: self.banner_max_length] if len(data) > self.banner_max_length else data
+        # Remove NUL bytes which can cause database errors
+        cleaned = data.replace('\x00', '')
+        return cleaned[: self.banner_max_length] if len(cleaned) > self.banner_max_length else cleaned
 
     def _parse_timestamp(self, ts_str: str | None) -> datetime | None:
         if not ts_str:

@@ -17,32 +17,40 @@ def iter_records(
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
 
-    dctx = zstandard.ZstdDecompressor()
     count = 0
 
     try:
         with open(path, "rb") as fh:
-            with dctx.stream_reader(fh) as zfh:
-                text = io.TextIOWrapper(zfh, encoding="utf-8", errors="replace")
+            # Auto-detect: zstd files start with magic bytes 0x28, 0xB5, 0x2F, 0xFD
+            first_bytes = fh.read(4)
+            fh.seek(0)
 
-                for line_num, line in enumerate(text, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
+            is_zstd = first_bytes[:4] == b'\x28\xB5\x2F\xFD'
 
-                    try:
-                        record = orjson.loads(line)
-                        yield record
-                        count += 1
+            if is_zstd:
+                dctx = zstandard.ZstdDecompressor()
+                stream = io.TextIOWrapper(dctx.stream_reader(fh), encoding="utf-8", errors="replace")
+            else:
+                stream = io.TextIOWrapper(fh, encoding="utf-8", errors="replace")
 
-                        if limit is not None and count >= limit:
-                            break
+            for line_num, line in enumerate(stream, start=1):
+                line = line.strip()
+                if not line:
+                    continue
 
-                    except orjson.JSONDecodeError as e:
-                        logfire.warning(
-                            "stream_reader.bad_json_line", line_num=line_num, error=str(e)
-                        )
-                        continue
+                try:
+                    record = orjson.loads(line)
+                    yield record
+                    count += 1
+
+                    if limit is not None and count >= limit:
+                        break
+
+                except orjson.JSONDecodeError as e:
+                    logfire.warning(
+                        "stream_reader.bad_json_line", line_num=line_num, error=str(e)
+                    )
+                    continue
 
         logfire.info("stream_reader.complete", records_yielded=count, path=str(path))
 

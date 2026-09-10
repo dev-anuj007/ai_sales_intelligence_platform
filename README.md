@@ -17,35 +17,39 @@ A production-grade sales intelligence platform for cybersecurity teams to identi
    uv sync
    ```
 
-2. **Ingest data (using the fixture for quick dev iteration):**
+2. **Set up PostgreSQL database:**
+   ```bash
+   # Create the database and tables
+   export DB_TYPE=postgres
+   uv run python scripts/setup_postgres.py
+   ```
+   See [docs/postgres_migration.md](docs/postgres_migration.md) for detailed setup instructions.
+
+3. **Ingest data (using the fixture for quick dev iteration):**
    ```bash
    uv run python -m services.pipeline.run_pipeline \
      --input services/pipeline/data/fixtures/shodan_sample.jsonl \
-     --db services/storage/db/sales_intel.duckdb \
      --limit 5000
    ```
 
-3. **Score accounts:**
+4. **Score accounts:**
    ```bash
-   uv run python -m services.scoring.score_accounts \
-     --db services/storage/db/sales_intel.duckdb
+   uv run python -m services.scoring.run_scoring
    ```
 
-4. **Enrich top accounts (mock LLM):**
+5. **Enrich top accounts (mock LLM):**
    ```bash
    uv run python -m services.enrichment.run_enrichment \
-     --db services/storage/db/sales_intel.duckdb \
-     --top-n 50 \
-     --client mock
+     --top-n 50
    ```
 
-5. **Run the API server:**
+6. **Run the API server:**
    ```bash
    # Uses port 8001 if port 8000 is in use
    uv run uvicorn main:app --reload --port 8001
    ```
 
-6. **Test it:**
+7. **Test it:**
    ```bash
    curl http://localhost:8001/health
    curl http://localhost:8001/accounts?limit=10
@@ -87,7 +91,7 @@ Each service is self-contained and independently deployable:
 
 1. **API Layer** (`*/api.py`) — FastAPI routers, HTTP request/response handling
 2. **Service Layer** (`*/service.py`) — Business logic, orchestration
-3. **Storage Layer** (`services/storage/`) — DuckDB access, repositories, models
+3. **Storage Layer** (`services/storage/`) — PostgreSQL access, repositories, models
 
 All services are dependency-injected. Services have zero knowledge of HTTP/FastAPI. API layer NEVER directly accesses storage.
 
@@ -96,7 +100,7 @@ All services are dependency-injected. Services have zero knowledge of HTTP/FastA
 - `services/aggregation/` — SQL aggregation from staging to accounts
 - `services/scoring/` — Rule-based risk scoring engine
 - `services/enrichment/` — LLM orchestration (signal/noise, company inference, narrative, outreach)
-- `services/storage/` — Shared data access layer (DuckDB, repositories, domain models)
+- `services/storage/` — Shared data access layer (PostgreSQL via SQLAlchemy/SQLModel, repositories, domain models)
 
 ## Key Features
 
@@ -113,7 +117,7 @@ All services are dependency-injected. Services have zero knowledge of HTTP/FastA
 ### Production-grade practices
 - **Strict type annotations** with mypy strict mode
 - **90%+ unit test coverage** on service layer (with mocked repositories and LLM)
-- **Comprehensive tracing**: every LLM call logged to a JSONL trace file queryable via DuckDB
+- **Comprehensive tracing**: every LLM call logged to PostgreSQL trace table + JSONL file for audit trails
 - **Cost awareness**: explicit $/token model cost calculations, cost ceiling enforced at runtime
 - **Prompt versioning**: all prompts versioned as Markdown files; eval harness compares v1 vs v2 metrics
 
@@ -124,9 +128,10 @@ All services are dependency-injected. Services have zero knowledge of HTTP/FastA
 ├── services/                Self-contained microservices
 │   ├── storage/             Shared data access layer
 │   │   ├── abstractions.py  Protocol interfaces
-│   │   ├── *_storage.py     DuckDB implementations
-│   │   ├── models.py        Pydantic domain models
-│   │   ├── db/              DuckDB files (.gitignore)
+│   │   ├── postgres_*.py    PostgreSQL implementations (SQLAlchemy/SQLModel)
+│   │   ├── duckdb_*.py      DuckDB implementations (legacy support)
+│   │   ├── sqlmodel_models.py  ORM models
+│   │   ├── db/              DuckDB files (.gitignore, for local dev)
 │   │   └── tests/           Storage layer tests
 │   │
 │   ├── pipeline/            Data ingestion service
@@ -181,7 +186,7 @@ All services are dependency-injected. Services have zero knowledge of HTTP/FastA
 - **Phase 4: Multi-snapshot deltas** — Track "new exposure since last scan", enable historical trends
 - **Phase 5: CRM integration** — Salesforce/HubSpot sync of scored accounts and outreach drafts
 - **Phase 6: Auth & RBAC** — User management, role-based access control
-- **Phase 7: Performance tuning** — Parallel zstd parsing, Postgres for accounts if concurrent writes needed
+- **Phase 7: Performance tuning** — Parallel zstd parsing, connection pooling optimization
 
 ## Cost Model (Mock Scenario)
 

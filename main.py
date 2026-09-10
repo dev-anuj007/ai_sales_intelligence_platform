@@ -7,7 +7,9 @@ from services.aggregation.api import router as aggregation_router
 from services.pipeline.api import router as pipeline_router
 from services.scoring.api import router as scoring_router
 from services.enrichment.api import router as enrichment_router
+from services.storage.accounts_api import router as accounts_router
 from services.storage import init_pool, close_pool
+from services.storage.migrate import apply_schema
 
 logfire.configure()
 
@@ -15,7 +17,8 @@ logfire.configure()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_pool()
-    logfire.info("Storage connection pool initialized")
+    apply_schema()
+    logfire.info("Storage connection pool initialized and schema applied")
     yield
     close_pool()
     logfire.info("Storage connection pool closed")
@@ -37,6 +40,7 @@ async def health():
     return {"status": "ok", "version": "0.1.0"}
 
 
+app.include_router(accounts_router)
 app.include_router(pipeline_router)
 app.include_router(aggregation_router)
 app.include_router(scoring_router)

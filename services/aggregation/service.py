@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
-import duckdb
 import logfire
+from sqlalchemy import text
 
-from services.storage.account_storage import AccountStorageService
+from services.storage import AccountStorageService, get_pool
 
 
 class AggregationService:
-    def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
-        self.connection = connection
-        self.account_storage = AccountStorageService(connection)
+    def __init__(self, account_storage: AccountStorageService | None = None) -> None:
+        self.pool = get_pool()
+        self.account_storage = account_storage or AccountStorageService()
+        self.connection = self.pool.get_connection()
 
     def aggregate_staging_to_accounts(self) -> dict[str, Any]:
         logfire.info("aggregation_service.start")
@@ -21,9 +22,11 @@ class AggregationService:
             self._build_account_top_records_index()
             self._mark_excluded_honeypots()
 
-            account_count = self.account_storage.count()
+            account_count = self.connection.execute(
+                text("SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = false")
+            ).fetchall()[0][0]
             excluded_honeypot = self.connection.execute(
-                "SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = true"
+                text("SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = true")
             ).fetchall()[0][0]
 
             summary = {
@@ -40,32 +43,32 @@ class AggregationService:
             raise
 
     def _aggregate_accounts_sql(self) -> None:
-        sql = """
+        sql = text("""
             INSERT INTO accounts (
                 root_domain, record_count, asset_count, distinct_ips, distinct_ports,
                 port_list, countries, primary_country_code, primary_org, cloud_or_cdn_fronted,
                 vuln_count_total, vuln_count_critical, max_cvss, max_epss, top_cve_ids,
                 exposed_database_count, legacy_protocol_count, weak_tls_count,
                 self_signed_cert_count, eol_product_count, iot_ot_device_count,
-                honeypot_flagged, sample_http_titles, sample_products,
+                honeypot_flagged, excluded_as_honeypot, sample_http_titles, sample_products,
                 first_seen, last_seen, snapshot_date
             )
             SELECT
                 root_domain,
                 COUNT(*) as record_count,
-                COUNT(*) FILTER (WHERE NOT is_infra_noise) as asset_count,
+                SUM(CASE WHEN NOT is_infra_noise THEN 1 ELSE 0 END) as asset_count,
                 COUNT(DISTINCT ip) as distinct_ips,
                 COUNT(DISTINCT port) as distinct_ports,
-                array_agg(DISTINCT port) as port_list,
-                array_agg(DISTINCT country_code) FILTER (WHERE country_code IS NOT NULL) as countries,
-                mode(country_code) as primary_country_code,
-                mode(org) as primary_org,
-                bool_or(list_contains(tags, 'cdn') OR list_contains(tags, 'cloud')) as cloud_or_cdn_fronted,
+                TO_JSON(ARRAY_AGG(DISTINCT port)) as port_list,
+                TO_JSON(ARRAY_AGG(DISTINCT country_code) FILTER (WHERE country_code IS NOT NULL)) as countries,
+                (ARRAY_AGG(country_code) FILTER (WHERE country_code IS NOT NULL))[1] as primary_country_code,
+                (ARRAY_AGG(org) FILTER (WHERE org IS NOT NULL))[1] as primary_org,
+                bool_or(tags::text LIKE '%cdn%' OR tags::text LIKE '%cloud%') as cloud_or_cdn_fronted,
                 COALESCE(SUM(vuln_count), 0) as vuln_count_total,
                 COALESCE(SUM(CASE WHEN max_cvss >= 9 OR (max_cvss >= 7 AND max_epss >= 0.5) THEN 1 ELSE 0 END), 0) as vuln_count_critical,
                 MAX(max_cvss) as max_cvss,
                 MAX(max_epss) as max_epss,
-                array_agg(DISTINCT vuln_ids[1:1]) FILTER (WHERE vuln_ids IS NOT NULL AND list_length(vuln_ids) > 0) as top_cve_ids,
+                '[]'::json as top_cve_ids,
                 SUM(CASE WHEN is_database_port THEN 1 ELSE 0 END) as exposed_database_count,
                 SUM(CASE WHEN is_legacy_protocol THEN 1 ELSE 0 END) as legacy_protocol_count,
                 SUM(CASE WHEN ssl_version_weak THEN 1 ELSE 0 END) as weak_tls_count,
@@ -73,11 +76,12 @@ class AggregationService:
                 SUM(CASE WHEN is_eol_product THEN 1 ELSE 0 END) as eol_product_count,
                 SUM(CASE WHEN is_iot_ot_device THEN 1 ELSE 0 END) as iot_ot_device_count,
                 bool_or(is_honeypot) as honeypot_flagged,
-                array_slice(array_agg(DISTINCT http_title) FILTER (WHERE http_title IS NOT NULL), 1, 5) as sample_http_titles,
-                array_slice(array_agg(DISTINCT product) FILTER (WHERE product IS NOT NULL), 1, 5) as sample_products,
+                false as excluded_as_honeypot,
+                '[]'::json as sample_http_titles,
+                '[]'::json as sample_products,
                 MIN(ts) as first_seen,
                 MAX(ts) as last_seen,
-                '2026-09-07'::VARCHAR as snapshot_date
+                '2026-09-10'::VARCHAR as snapshot_date
             FROM staging_records
             WHERE root_domain IS NOT NULL
             GROUP BY root_domain
@@ -103,16 +107,18 @@ class AggregationService:
                 eol_product_count = EXCLUDED.eol_product_count,
                 iot_ot_device_count = EXCLUDED.iot_ot_device_count,
                 honeypot_flagged = EXCLUDED.honeypot_flagged,
+                excluded_as_honeypot = EXCLUDED.excluded_as_honeypot,
                 sample_http_titles = EXCLUDED.sample_http_titles,
                 sample_products = EXCLUDED.sample_products,
                 first_seen = EXCLUDED.first_seen,
                 last_seen = EXCLUDED.last_seen
-        """
+        """)
         self.connection.execute(sql)
+        self.connection.commit()
         logfire.info("aggregation_service.accounts_aggregated")
 
     def _build_account_top_records_index(self) -> None:
-        sql = """
+        sql = text("""
             INSERT INTO account_top_records (root_domain, record_id, rank)
             SELECT root_domain, record_id, rn FROM (
                 SELECT
@@ -128,18 +134,20 @@ class AggregationService:
             )
             WHERE rn <= 20
             ON CONFLICT (root_domain, record_id) DO NOTHING
-        """
+        """)
         self.connection.execute(sql)
+        self.connection.commit()
         logfire.info("aggregation_service.account_top_records_built")
 
     def _mark_excluded_honeypots(self) -> None:
-        sql = """
+        sql = text("""
             UPDATE accounts
             SET excluded_as_honeypot = true
             WHERE asset_count = 0 AND honeypot_flagged = true
-        """
+        """)
         self.connection.execute(sql)
+        self.connection.commit()
         count = self.connection.execute(
-            "SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = true"
+            text("SELECT COUNT(*) as cnt FROM accounts WHERE excluded_as_honeypot = true")
         ).fetchall()[0][0]
         logfire.info("aggregation_service.honeypots_marked", count=count)

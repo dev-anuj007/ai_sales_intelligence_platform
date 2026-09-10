@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,14 @@ class Settings(BaseSettings):
     traces_jsonl_path: Path = traces_dir / "llm_traces.jsonl"
     prompts_dir: Path = project_root / "prompts"
 
+    # ===== Database Configuration =====
+    db_type: Literal["duckdb", "postgres"] = "postgres"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_database: str = "sales_intel"
+    postgres_user: str = "postgres"
+    postgres_password: str = "postgres"
+
     # ===== LLM Configuration =====
     llm_client: Literal["mock", "anthropic"] = "mock"
     anthropic_api_key: str = ""
@@ -34,11 +43,21 @@ class Settings(BaseSettings):
 
     # ===== Pipeline Configuration =====
     batch_size: int = 5000
-    max_records_to_ingest: int | None = None  # None = all records; set limit for dev iteration
+    max_records_to_ingest: int | None = None
 
     # ===== Logging Configuration =====
     logfire_enabled: bool = True
     log_level: str = "INFO"
+
+    # ===== Environment =====
+    environment: Literal["development", "production"] = "development"
+
+    @field_validator("max_records_to_ingest", mode="before")
+    @classmethod
+    def parse_max_records(cls, v: str | int | None) -> int | None:
+        if v == "" or v is None:
+            return None
+        return int(v)
 
     def __post_init__(self) -> None:
         """Ensure required directories exist."""

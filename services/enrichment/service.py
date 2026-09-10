@@ -2,18 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
-import duckdb
 import logfire
 
-from services.storage.account_storage import AccountStorageService
-from services.storage.names_storage import NamesStorageServiceImpl
+from services.storage import AccountStorageService, NamesStorageServiceImpl
 
 
 class EnrichmentService:
-    def __init__(self, connection: duckdb.DuckDBPyConnection) -> None:
-        self.connection = connection
-        self.account_storage = AccountStorageService(connection)
-        self.names_storage = NamesStorageServiceImpl(connection)
+    def __init__(self, account_storage: AccountStorageService | None = None, names_storage: NamesStorageServiceImpl | None = None) -> None:
+        self.account_storage = account_storage or AccountStorageService()
+        self.names_storage = names_storage or NamesStorageServiceImpl()
 
     def enrich_top_accounts(self, top_n: int = 50, score_version: str = "v1") -> dict[str, Any]:
         logfire.info("enrichment_service.start", top_n=top_n, score_version=score_version)
