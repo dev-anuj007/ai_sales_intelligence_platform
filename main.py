@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 import logfire
 from fastapi import FastAPI
 
+from services.logger.middleware import TraceMiddleware
+from services.logger.factory import get_logger_sync
 from services.aggregation.api import router as aggregation_router
 from services.pipeline.api import router as pipeline_router
 from services.scoring.api import router as scoring_router
@@ -12,16 +14,17 @@ from services.storage import init_pool, close_pool
 from services.storage.migrate import apply_schema
 
 logfire.configure()
+logger = get_logger_sync()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_pool()
     apply_schema()
-    logfire.info("Storage connection pool initialized and schema applied")
+    logger.info("Storage connection pool initialized and schema applied")
     yield
     close_pool()
-    logfire.info("Storage connection pool closed")
+    logger.info("Storage connection pool closed")
 
 
 app = FastAPI(
@@ -30,6 +33,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Add trace middleware FIRST (before other middleware) for proper context propagation
+app.add_middleware(TraceMiddleware)
 
 logfire.instrument_system_metrics()
 logfire.instrument_fastapi(app)
