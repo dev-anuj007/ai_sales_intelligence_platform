@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from services.enrichment.service import EnrichmentService
+from services.llm.mock_client import MockLLMClient
 from services.storage.models import Account
 
 
@@ -41,9 +42,9 @@ def mock_storage() -> MockAccountStorage:
 
 
 @pytest.fixture
-def enrichment_service(mock_storage: MockAccountStorage) -> EnrichmentService:
-    """Provide EnrichmentService with mock storage."""
-    return EnrichmentService(account_storage=mock_storage)
+def enrichment_service(mock_storage: MockAccountStorage, mock_llm_client: MockLLMClient) -> EnrichmentService:
+    """Provide EnrichmentService with mock storage and mock LLM client."""
+    return EnrichmentService(account_storage=mock_storage, llm_client=mock_llm_client)
 
 
 @pytest.fixture

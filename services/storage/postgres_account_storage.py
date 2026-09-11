@@ -207,6 +207,50 @@ class PostgresAccountStorageService:
             if self._owns_session:
                 session.close()
 
+    def get_top_records_for_account(self, root_domain: str, limit: int = 20) -> list[dict]:
+        """Get top N records (staging records) for an account ordered by rank."""
+        from services.storage.sqlmodel_models import AccountTopRecordSQL, StagingRecordSQL
+
+        session = self._get_session()
+        try:
+            top_records_sql = (
+                session.query(AccountTopRecordSQL, StagingRecordSQL)
+                .join(StagingRecordSQL, AccountTopRecordSQL.record_id == StagingRecordSQL.record_id)
+                .filter(AccountTopRecordSQL.root_domain == root_domain)
+                .order_by(AccountTopRecordSQL.rank)
+                .limit(limit)
+                .all()
+            )
+
+            top_records = []
+            for top_record_sql, staging_record_sql in top_records_sql:
+                top_records.append({
+                    "rank": top_record_sql.rank,
+                    "ip": staging_record_sql.ip,
+                    "port": staging_record_sql.port,
+                    "transport": staging_record_sql.transport,
+                    "product": staging_record_sql.product,
+                    "version": staging_record_sql.version,
+                    "os": staging_record_sql.os,
+                    "device": staging_record_sql.device,
+                    "tags": staging_record_sql.tags,
+                    "has_vulns": staging_record_sql.has_vulns,
+                    "vuln_count": staging_record_sql.vuln_count,
+                    "max_cvss": staging_record_sql.max_cvss,
+                    "max_epss": staging_record_sql.max_epss,
+                    "is_database_port": staging_record_sql.is_database_port,
+                    "is_legacy_protocol": staging_record_sql.is_legacy_protocol,
+                    "is_iot_ot_device": staging_record_sql.is_iot_ot_device,
+                    "is_eol_product": staging_record_sql.is_eol_product,
+                    "http_title": staging_record_sql.http_title,
+                    "http_server": staging_record_sql.http_server,
+                    "http_status": staging_record_sql.http_status,
+                })
+            return top_records
+        finally:
+            if self._owns_session:
+                session.close()
+
     @staticmethod
     def _to_pydantic(account_sql: AccountSQL | None) -> Account | None:
         """Convert SQLModel to Pydantic model."""
